@@ -387,7 +387,7 @@ void NET_getTxTime(const uint8_t *txFrame, volatile uint64_t *stamps) {
 
 
 // defined as a weak reference so it may be overriden
-__attribute__((weak))
-void PTP_process(uint8_t *frame, int flen) {
-    __asm volatile("nop");
-}
+//__attribute__((weak))
+//void PTP_process(uint8_t *frame, int flen) {
+//    __asm volatile("nop");
+//}
