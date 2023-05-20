@@ -5,7 +5,11 @@
 #include <math.h>
 #include "../clk/mono.h"
 #include "../clk/util.h"
+#include "../net/eth.h"
+#include "../net/util.h"
+#include "common.h"
 #include "src.h"
+#include "../format.h"
 
 static void getMeanVar(int cnt, const float *v, float *mean, float *var);
 
@@ -185,6 +189,25 @@ void PtpSource_updateStatus(PtpSource *this) {
     this->prune |= this->stratum > PTP_MAX_STRAT;
     // mark source for pruning if its delay is too high
     this->prune |= (this->usedOffset > 7) && (this->delayMean > PTP_MAX_DELAY);
+}
+
+void PtpSource_init(PtpSource *this, uint8_t *frame, int flen) {
+    HEADER_ETH *headerEth = (HEADER_ETH *) frame;
+    HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
+    PTP2_ANNOUNCE *announce = (PTP2_ANNOUNCE *) (headerPTP + 1);
+
+    this->mac[1] = 0;
+    copyMAC(this->mac, headerEth->macSrc);
+    toHex(this->mac[1] >> 16, 4, '0', (char *) &(this->id));
+}
+
+void PtpSource_run(PtpSource *this) {
+
+}
+
+void PtpSource_process(PtpSource *this, uint8_t *frame, int flen) {
+    HEADER_ETH *headerEth = (HEADER_ETH *) frame;
+    HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
 }
 
 void PtpSource_applyOffset(PtpSource *this, int64_t offset) {

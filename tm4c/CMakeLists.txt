@@ -49,6 +49,7 @@ add_executable(
         lib/net/ip.c
         lib/net/udp.c
         lib/net/util.c
+        lib/ptp/common.c
         lib/ptp/pll.c
         lib/ptp/ptp.c
         lib/ptp/src.c

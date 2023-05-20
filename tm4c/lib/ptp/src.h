@@ -30,6 +30,7 @@ struct PtpSource {
     // time span
     int span;
 
+    uint32_t mac[2];
     uint64_t lastUpdate;
     uint32_t id;
     uint32_t rootDelay;
@@ -70,14 +71,24 @@ typedef struct PtpSource PtpSource;
 /**
  * Initialize source structure
  * @param this pointer to source structure
+ * @param frame frame buffer
+ * @param flen length of frame
  */
-void PtpSource_init(PtpSource *this);
+void PtpSource_init(PtpSource *this, uint8_t *frame, int flen);
 
 /**
  * Perform internal state update for source
  * @param this pointer to source structure
  */
 void PtpSource_run(PtpSource *this);
+
+/**
+ * Process received frame
+ * @param this pointer to source structure
+ * @param frame frame buffer
+ * @param flen length of frame
+ */
+void PtpSource_process(PtpSource *this, uint8_t *frame, int flen);
 
 /**
  * Apply offset correction to samples
