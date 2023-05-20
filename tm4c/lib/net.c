@@ -184,9 +184,8 @@ static void initMAC() {
     EMAC0.DMAOPMODE.ST = 1;
     EMAC0.DMAOPMODE.SR = 1;
 
-    // set frame filter moe
-    EMAC0.FRAMEFLTR.PM = 1;
-    EMAC0.FRAMEFLTR.VTFE = 1;
+    // set frame filter mode
+    EMAC0.FRAMEFLTR.RA = 1;
     // verify all checksum
     EMAC0.CFG.IPC = 1;
     // prevent loopback of data in half-duplex mode
