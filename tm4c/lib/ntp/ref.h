@@ -5,7 +5,7 @@
 #ifndef GPSDO_REF_H
 #define GPSDO_REF_H
 
-#include "src.h"
+#include "../ptp/src.h"
 
 struct NtpGPS {
     NtpSource source;

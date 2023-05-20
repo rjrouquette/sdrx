@@ -9,30 +9,30 @@
 
 static void getMeanVar(int cnt, const float *v, float *mean, float *var);
 
-void NtpSource_incr(NtpSource *this) {
-    this->samplePtr = (this->samplePtr + 1) & (NTP_MAX_HISTORY - 1);
-    if(++this->sampleCount > NTP_MAX_HISTORY)
-        this->sampleCount = NTP_MAX_HISTORY;
+void PtpSource_incr(PtpSource *this) {
+    this->samplePtr = (this->samplePtr + 1) & (PTP_MAX_HISTORY - 1);
+    if(++this->sampleCount > PTP_MAX_HISTORY)
+        this->sampleCount = PTP_MAX_HISTORY;
 }
 
-void NtpSource_update(NtpSource *this) {
+void PtpSource_update(PtpSource *this) {
     const int head = this->samplePtr;
-    NtpPollSample *sample = this->pollSample + head;
+    PtpPollSample *sample = this->pollSample + head;
     this->lastOffsetOrig = toFloat(sample->offset);
     this->lastOffset = this->lastOffsetOrig;
     this->lastDelay = sample->delay;
 
     // compute time spanned by samples
-    int j = (head - (this->sampleCount - 1)) & (NTP_MAX_HISTORY - 1);
+    int j = (head - (this->sampleCount - 1)) & (PTP_MAX_HISTORY - 1);
     this->span = (int) ((sample->comp - this->pollSample[j].comp) >> 32);
 
     // convert offsets to floats
-    int index[NTP_MAX_HISTORY];
-    float offset[NTP_MAX_HISTORY];
-    float delay[NTP_MAX_HISTORY];
+    int index[PTP_MAX_HISTORY];
+    float offset[PTP_MAX_HISTORY];
+    float delay[PTP_MAX_HISTORY];
     int cnt = this->sampleCount;
     for (int i = 0; i < cnt; i++) {
-        int k = (head - i) & (NTP_MAX_HISTORY - 1);
+        int k = (head - i) & (PTP_MAX_HISTORY - 1);
         index[i] = k;
         offset[i] = toFloat(this->pollSample[k].offset);
         delay[i] = this->pollSample[k].delay;
@@ -72,8 +72,8 @@ void NtpSource_update(NtpSource *this) {
     --cnt;
     float drift[cnt];
     for (int i = 0; i < cnt; i++) {
-        NtpPollSample *current = this->pollSample + index[i];
-        NtpPollSample *previous = this->pollSample + index[i+1];
+        PtpPollSample *current = this->pollSample + index[i];
+        PtpPollSample *previous = this->pollSample + index[i+1];
 
         // all three deltas are required to isolate drift from offset adjustments
         uint32_t a = current->taiSkew - previous->taiSkew;
@@ -142,7 +142,7 @@ static void getMeanVar(const int cnt, const float *v, float *mean, float *var) {
 }
 
 
-void NtpSource_updateStatus(NtpSource *this) {
+void PtpSource_updateStatus(PtpSource *this) {
     // clear lost flag if peer was reached
     if(this->reach & 0xF)
         this->lost = false;
@@ -153,7 +153,7 @@ void NtpSource_updateStatus(NtpSource *this) {
 
     // adjust poll interval
     if(
-            this->sampleCount == NTP_MAX_HISTORY &&
+            this->sampleCount == PTP_MAX_HISTORY &&
             (this->reach & 0xFF) == 0xFF &&
             this->pollCounter >= 8 &&
             this->poll < this->maxPoll
@@ -182,13 +182,13 @@ void NtpSource_updateStatus(NtpSource *this) {
     // mark source for pruning if it is unreachable
     this->prune = (this->reach == 0) && (this->pollCounter >= 16);
     // mark source for pruning if its stratum is too high
-    this->prune |= this->stratum > NTP_MAX_STRAT;
+    this->prune |= this->stratum > PTP_MAX_STRAT;
     // mark source for pruning if its delay is too high
-    this->prune |= (this->usedOffset > 7) && (this->delayMean > NTP_MAX_DELAY);
+    this->prune |= (this->usedOffset > 7) && (this->delayMean > PTP_MAX_DELAY);
 }
 
-void NtpSource_applyOffset(NtpSource *this, int64_t offset) {
-    for (int i = 0; i < NTP_MAX_HISTORY; i++) {
+void PtpSource_applyOffset(PtpSource *this, int64_t offset) {
+    for (int i = 0; i < PTP_MAX_HISTORY; i++) {
         this->pollSample[i].taiSkew += offset;
         this->pollSample[i].offset -= offset;
     }

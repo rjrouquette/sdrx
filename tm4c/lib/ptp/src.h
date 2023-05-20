@@ -8,24 +8,21 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define NTP_MAX_HISTORY (16)
-#define NTP_MAX_STRAT (3)
-#define NTP_MAX_DELAY (50e-3f)
+#define PTP_MAX_HISTORY (16)
+#define PTP_MAX_STRAT (3)
+#define PTP_MAX_DELAY (50e-3f)
 
-struct NtpPollSample {
+struct PtpPollSample {
     int64_t offset;
     float delay;
     uint32_t taiSkew;
     uint64_t comp;
 };
-typedef struct NtpPollSample NtpPollSample;
+typedef struct PtpPollSample PtpPollSample;
 
-struct NtpSource {
-    void (*init)(void *);
-    void (*run)(void *);
-
+struct PtpSource {
     // filter samples
-    struct NtpPollSample pollSample[NTP_MAX_HISTORY];
+    struct PtpPollSample pollSample[PTP_MAX_HISTORY];
     uint8_t samplePtr;
     uint8_t sampleCount;
     uint8_t usedOffset;
@@ -34,16 +31,12 @@ struct NtpSource {
     int span;
 
     uint64_t lastUpdate;
-    uint64_t refTime;
     uint32_t id;
-    uint32_t refID;
     uint32_t rootDelay;
     uint32_t rootDispersion;
     uint32_t rxCount;
     uint32_t rxValid;
     uint32_t txCount;
-    float responseTime;
-    uint16_t mode;
     uint16_t state;
     uint16_t reach;
     uint16_t stratum;
@@ -51,10 +44,6 @@ struct NtpSource {
     uint16_t pollCounter;
     int16_t minPoll;
     int16_t maxPoll;
-    int8_t precision;
-    uint8_t leap;
-    uint8_t version;
-    uint8_t ntpMode;
 
     // last sample offset
     float lastOffset;
@@ -73,36 +62,28 @@ struct NtpSource {
     float score;
 
     // status flags
-    bool xleave;
     bool prune;
     bool lost;
-    bool unstable;
 };
-typedef struct NtpSource NtpSource;
+typedef struct PtpSource PtpSource;
 
 /**
- * Advance source sample pointer
+ * Initialize source structure
  * @param this pointer to source structure
  */
-void NtpSource_incr(NtpSource *this);
+void PtpSource_init(PtpSource *this);
 
 /**
- * Update source statistics
+ * Perform internal state update for source
  * @param this pointer to source structure
  */
-void NtpSource_update(NtpSource *this);
-
-/**
- * Update source connectivity status
- * @param this pointer to source structure
- */
-void NtpSource_updateStatus(NtpSource *this);
+void PtpSource_run(PtpSource *this);
 
 /**
  * Apply offset correction to samples
  * @param this pointer to source structure
  * @param offset correction to apply
  */
-void NtpSource_applyOffset(NtpSource *this, int64_t offset);
+void PtpSource_applyOffset(PtpSource *this, int64_t offset);
 
 #endif //GPSDO_SRC_H

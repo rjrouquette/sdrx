@@ -6,7 +6,7 @@
 #define GPSDO_PEER_H
 
 #include <stdbool.h>
-#include "src.h"
+#include "../ptp/src.h"
 
 #define PEER_RESPONSE_TIMEOUT (0x80000000ull) // 500 ms
 #define PEER_MIN_POLL (4)
