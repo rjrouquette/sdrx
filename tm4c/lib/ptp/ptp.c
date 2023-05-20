@@ -183,11 +183,13 @@ void PTP_process(uint8_t *frame, int flen) {
     HEADER_ETH *headerEth = (HEADER_ETH *) frame;
     HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
 
+    LED_act1();
+
     // ignore anything we sent ourselves
     if(isMyMAC(headerEth->macSrc) == 0)
         return;
     // ignore unsupported versions
-    if(headerPTP->versionPTP != 2) return;
+    if(headerPTP->versionPTP != PTP2_VERSION) return;
     // flip mac address for reply
     copyMAC(headerEth->macDst, headerEth->macSrc);
 
