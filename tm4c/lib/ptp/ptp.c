@@ -22,9 +22,9 @@
 #include "src.h"
 
 #define PTP_MAX_SRCS (8)
+#define PTP_MAX_SKEW (10e-6f)
 
 static uint8_t clockId[8];
-static volatile uint32_t seqId;
 
 static volatile uint64_t lastUpdate;
 static volatile uint32_t refId;
@@ -39,6 +39,8 @@ static PtpSource sourceSlots[PTP_MAX_SRCS];
 // allocate PTP source
 static void allocSource(uint8_t *frame, int flen);
 
+static void runSelect(void *ref);
+
 // chronyc request handler
 static void chronycRequest(uint8_t *frame, int flen);
 
@@ -47,9 +49,10 @@ void PTP_init() {
 
     // set clock ID to MAC address
     getMAC(clockId + 2);
-
     // listen for chronyc status requests
     UDP_register(DEFAULT_CANDM_PORT, chronycRequest);
+    // update source selection at 16 Hz
+    runSleep(1u << (32 - 4), runSelect, NULL);
 }
 
 /**
@@ -107,6 +110,51 @@ static void allocSource(uint8_t *frame, int flen) {
         }
     }
 }
+
+static void runSelect(void *ref) {
+    // select best clock
+    sourcePrimary = NULL;
+    for(int i = 0; i < cntSources; i++) {
+        if(sources[i]->lost) {
+            sources[i]->state = RPY_SD_ST_UNSELECTED;
+            continue;
+        }
+        if(sources[i]->usedOffset < 8 || sources[i]->usedDrift < 4) {
+            sources[i]->state = RPY_SD_ST_FALSETICKER;
+            continue;
+        }
+//        if(sources[i]->freqSkew > PTP_MAX_SKEW) {
+//            sources[i]->state = RPY_SD_ST_JITTERY;
+//            continue;
+//        }
+        sources[i]->state = RPY_SD_ST_SELECTABLE;
+        if(sourcePrimary == NULL) {
+            sourcePrimary = sources[i];
+            continue;
+        }
+        if(sources[i]->score < sourcePrimary->score) {
+            sourcePrimary = sources[i];
+        }
+    }
+
+    // sanity check source and check for update
+    PtpSource *source = sourcePrimary;
+    if(source == NULL) return;
+    source->state = RPY_SD_ST_SELECTED;
+    if(source->lastUpdate == lastUpdate) return;
+    lastUpdate = source->lastUpdate;
+
+    // set status
+    refId = source->id;
+//    rootDelay = source->rootDelay + (uint32_t) (0x1p16f * source->delayMean);
+//    rootDispersion = source->rootDispersion + (uint32_t) (0x1p16f * source->delayStdDev);
+
+    // update offset compensation
+    PLL_updateOffset(source->poll, source->pollSample[source->samplePtr].offset);
+    // update frequency compensation
+    PLL_updateDrift(source->poll, source->freqDrift);
+}
+
 
 
 
