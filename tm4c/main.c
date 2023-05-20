@@ -8,15 +8,13 @@
 #include "hw/sys.h"
 #include "lib/clk/clk.h"
 #include "lib/delay.h"
-#include "lib/gps.h"
 #include "lib/led.h"
 #include "lib/net.h"
-#include "lib/ntp/ntp.h"
+#include "lib/ptp/ptp.h"
 #include "lib/rand.h"
 #include "lib/run.h"
 
 #include "gitversion.h"
-#include "ptp.h"
 #include "snmp.h"
 #include "status.h"
 
@@ -41,11 +39,8 @@ int main(void) {
     RAND_init();
     // initialize EEPROM
     EEPROM_init();
-    // initialize GPS
-    GPS_init();
     // initialize networking
     NET_init();
-    NTP_init();
     PTP_init();
     SNMP_init();
     STATUS_init();

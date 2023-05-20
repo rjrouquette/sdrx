@@ -6,7 +6,7 @@ set(CMAKE_CXX_COMPILER arm-none-eabi-g++)
 set(CMAKE_C_COMPILER_WORKS 1)
 set(CMAKE_CXX_COMPILER_WORKS 1)
 
-project(gpsdo)
+project(sdrx)
 find_program(OBJCOPY arm-none-eabi-objcopy)
 find_program(OBJDUMP arm-none-eabi-objdump)
 
@@ -24,10 +24,9 @@ set(CMAKE_CXX_LINK_EXECUTABLE "<CMAKE_LINKER> ${LINKER_FLAGS} <OBJECTS> -o <TARG
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(
-        gpsdo
+        sdrx
 
         main.c
-        ptp.c
         snmp.c
         status.c
         hw/eeprom.c
@@ -41,7 +40,6 @@ add_executable(
         lib/clk/util.c
         lib/delay.c
         lib/format.c
-        lib/gps.c
         lib/led.c
         lib/net.c
         lib/net/arp.c
@@ -51,12 +49,9 @@ add_executable(
         lib/net/ip.c
         lib/net/udp.c
         lib/net/util.c
-        lib/ntp/ntp.c
-        lib/ntp/peer.c
-        lib/ntp/pll.c
-        lib/ntp/ref.c
-        lib/ntp/src.c
-        lib/ntp/tcmp.c
+        lib/ptp/pll.c
+        lib/ptp/ptp.c
+        lib/ptp/tcmp.c
         lib/rand.c
         lib/run.c
         lib/snmp/sensors.c
@@ -64,7 +59,7 @@ add_executable(
 )
 
 target_link_libraries(
-        gpsdo
+        sdrx
         -static
         -lm
         -lc
@@ -84,22 +79,22 @@ set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/gitversion.h
         PROPERTIES GENERATED TRUE
         HEADER_FILE_ONLY TRUE)
 
-add_dependencies(gpsdo githeader)
+add_dependencies(sdrx githeader)
 
 # split out debug symbols
 add_custom_command(
-        TARGET gpsdo POST_BUILD
-        COMMAND ${OBJCOPY} --only-keep-debug $<TARGET_FILE:gpsdo> $<TARGET_FILE:gpsdo>.debug
-        COMMAND ${OBJCOPY} --strip-debug $<TARGET_FILE:gpsdo>
-        COMMAND ${OBJCOPY} --add-gnu-debuglink=$<TARGET_FILE_NAME:gpsdo>.debug $<TARGET_FILE:gpsdo>
+        TARGET sdrx POST_BUILD
+        COMMAND ${OBJCOPY} --only-keep-debug $<TARGET_FILE:sdrx> $<TARGET_FILE:sdrx>.debug
+        COMMAND ${OBJCOPY} --strip-debug $<TARGET_FILE:sdrx>
+        COMMAND ${OBJCOPY} --add-gnu-debuglink=$<TARGET_FILE_NAME:sdrx>.debug $<TARGET_FILE:sdrx>
 )
 
 # create file for lm4flash
 add_custom_command(
-        TARGET gpsdo POST_BUILD
-        COMMAND ${OBJCOPY} --output-target binary $<TARGET_FILE:gpsdo> $<TARGET_FILE:gpsdo>.bin
+        TARGET sdrx POST_BUILD
+        COMMAND ${OBJCOPY} --output-target binary $<TARGET_FILE:sdrx> $<TARGET_FILE:sdrx>.bin
 )
 add_custom_command(
-        TARGET gpsdo POST_BUILD
-        COMMAND ${OBJDUMP} -h -S $<TARGET_FILE:gpsdo> > $<TARGET_FILE:gpsdo>.lst
+        TARGET sdrx POST_BUILD
+        COMMAND ${OBJDUMP} -h -S $<TARGET_FILE:sdrx> > $<TARGET_FILE:sdrx>.lst
 )

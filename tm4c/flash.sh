@@ -2,4 +2,4 @@
 set -e
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-lm4flash dist/gpsdo.bin
+lm4flash dist/sdrx.bin

@@ -9,8 +9,6 @@
 #include "../hw/sys.h"
 #include "../hw/timer.h"
 #include "mono.h"
-#include "tai.h"
-#include "comp.h"
 #include "util.h"
 
 #define INPUT_DELAY (2)
@@ -19,9 +17,6 @@ volatile uint32_t clkMonoInt = 0;
 volatile uint32_t clkMonoOff = 0;
 volatile uint32_t clkMonoEth = 0;
 volatile uint32_t clkMonoPps = 0;
-
-// pps edge capture state
-volatile struct ClockEvent clkMonoPpsEvent;
 
 
 void initClkMono() {
@@ -119,13 +114,6 @@ static void initCaptureTimer(volatile struct GPTM_MAP *timer) {
 }
 
 void initClkSync() {
-    // Enable Timer 4
-    RCGCTIMER.EN_GPTM4 = 1;
-    delay_cycles_4();
-    initCaptureTimer(&GPTM4);
-    // disable timer B interrupt
-    GPTM4.IMR.CBE = 0;
-
     // Enable Timer 5
     RCGCTIMER.EN_GPTM5 = 1;
     delay_cycles_4();
@@ -182,24 +170,6 @@ uint64_t CLK_MONO() {
 }
 
 
-// capture rising edge of PPS output for offset measurement
-void ISR_Timer4A() {
-    // snapshot edge time
-    uint32_t timer = CLK_MONO_RAW;
-    uint32_t event = GPTM4.TAR.raw;
-    // clear interrupt flag
-    GPTM4.ICR.CAE = 1;
-    // compute pps output time
-    timer -= ((timer + INPUT_DELAY) - event) & 0xFFFF;
-    clkMonoPps = timer;
-}
-
-// currently unused, but included for safety
-void ISR_Timer4B() {
-    // clear interrupt flag
-    GPTM4.ICR.CBE = 1;
-}
-
 // capture rising edge of ethernet PPS for offset measurement
 void ISR_Timer5A() {
     // snapshot edge time
@@ -220,18 +190,7 @@ void ISR_Timer5B() {
     uint32_t event = GPTM5.TBR.raw;
     // clear interrupt flag
     GPTM5.ICR.CBE = 1;
-    // update pps edge state
+    // compute pps output time
     timer -= ((timer + INPUT_DELAY) - event) & 0xFFFF;
-    // monotonic clock state
-    clkMonoPpsEvent.timer = timer;
-    clkMonoPpsEvent.offset = clkMonoOff;
-    clkMonoPpsEvent.integer = clkMonoInt;
-    // compensated clock state
-    clkMonoPpsEvent.compRate = clkCompRate;
-    clkMonoPpsEvent.compRef = clkCompRef;
-    clkMonoPpsEvent.compOff = clkCompOffset;
-    // tai clock state
-    clkMonoPpsEvent.taiRate = clkTaiRate;
-    clkMonoPpsEvent.taiRef = clkTaiRef;
-    clkMonoPpsEvent.taiOff = clkTaiOffset;
+    clkMonoPps = timer;
 }

@@ -14,7 +14,7 @@ rm -fr ./*
 cmake ..
 make VERBOSE=1
 #make -j$CORES
-mv gpsdo* ../dist
+mv sdrx* ../dist
 
 cd ..
 rm -fr build

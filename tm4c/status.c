@@ -7,12 +7,10 @@
 #include "hw/eeprom.h"
 #include "hw/emac.h"
 #include "hw/sys.h"
-#include "lib/clk/clk.h"
 #include "lib/clk/mono.h"
 #include "lib/clk/tai.h"
 #include "lib/clk/comp.h"
 #include "lib/format.h"
-#include "lib/gps.h"
 #include "lib/led.h"
 #include "lib/net.h"
 #include "lib/net/arp.h"
@@ -21,11 +19,11 @@
 #include "lib/net/ip.h"
 #include "lib/net/udp.h"
 #include "lib/net/util.h"
-#include "lib/ntp/pll.h"
+#include "lib/ptp/pll.h"
+#include "lib/run.h"
 
 #include "gitversion.h"
 #include "status.h"
-#include "lib/run.h"
 
 #define STATUS_PORT (23) // telnet port
 
@@ -34,7 +32,6 @@ void STATUS_process(uint8_t *frame, int flen);
 unsigned statusClock(char *body);
 unsigned statusEEPROM(int block, char *body);
 unsigned statusETH(char *body);
-unsigned statusGPS(char *body);
 unsigned statusSystem(char *body);
 
 unsigned statusSom(char *buffer);
@@ -85,8 +82,6 @@ void STATUS_process(uint8_t *frame, int flen) {
         size = statusEEPROM((int) fromHex(body + 6, 2), body);
     } else if(strncmp(body, "ethernet", 8) == 0 && hasTerminus(body, 8)) {
         size = statusETH(body);
-    } else if(strncmp(body, "gps", 3) == 0 && hasTerminus(body, 3)) {
-        size = statusGPS(body);
     } else if(strncmp(body, "pll", 3) == 0 && hasTerminus(body, 3)) {
         size = PLL_status(body);
     } else if(strncmp(body, "system", 6) == 0 && hasTerminus(body, 6)) {
@@ -209,36 +204,6 @@ unsigned statusClock(char *body) {
     end = append(end, tmp);
     end = append(end, "\n\n");
 
-    // PPS status
-    uint64_t pps[3];
-    CLK_PPS(pps);
-    strcpy(tmp, "0x");
-    toHex(pps[0]>>32, 8, '0', tmp+2);
-    tmp[10] = '.';
-    toHex(pps[0], 8, '0', tmp+11);
-    tmp[19] = 0;
-    end = append(end, "pps mono:  ");
-    end = append(end, tmp);
-    end = append(end, "\n");
-
-    strcpy(tmp, "0x");
-    toHex(pps[1]>>32, 8, '0', tmp+2);
-    tmp[10] = '.';
-    toHex(pps[1], 8, '0', tmp+11);
-    tmp[19] = 0;
-    end = append(end, "pps comp:  ");
-    end = append(end, tmp);
-    end = append(end, "\n");
-
-    strcpy(tmp, "0x");
-    toHex(pps[2]>>32, 8, '0', tmp+2);
-    tmp[10] = '.';
-    toHex(pps[2], 8, '0', tmp+11);
-    tmp[19] = 0;
-    end = append(end, "pps tai:   ");
-    end = append(end, tmp);
-    end = append(end, "\n\n");
-
     // tai - utc
     strcpy(tmp, "0x");
     toHex(clkTaiUtcOffset >> 32, 8, '0', tmp + 2);
@@ -333,60 +298,6 @@ unsigned statusETH(char *body) {
     end = append(end, "\n");
 
     // return size
-    return end - body;
-}
-
-unsigned statusGPS(char *body) {
-    char tmp[32];
-    char *end = body;
-
-    // gps fix
-    end = append(end, "fix good: ");
-    end = append(end, GPS_hasFix() ? "yes" : "no");
-    end = append(end, "\n");
-
-    // latitude
-    tmp[fmtFloat(GPS_locLat(), 0, 5, tmp)] = 0;
-    end = append(end, "latitude: ");
-    end = append(end, tmp);
-    end = append(end, " deg\n");
-
-    // longitude
-    tmp[fmtFloat(GPS_locLon(), 0, 5, tmp)] = 0;
-    end = append(end, "longitude: ");
-    end = append(end, tmp);
-    end = append(end, " deg\n");
-
-    // altitude
-    tmp[fmtFloat(GPS_locAlt(), 0, 2, tmp)] = 0;
-    end = append(end, "altitude: ");
-    end = append(end, tmp);
-    end = append(end, " m\n");
-
-    // clock bias
-    tmp[fmtFloat((float) GPS_clkBias(), 0, 0, tmp)] = 0;
-    end = append(end, "clock bias: ");
-    end = append(end, tmp);
-    end = append(end, " ns\n");
-
-    // clock drift
-    tmp[fmtFloat((float) GPS_clkDrift(), 0, 0, tmp)] = 0;
-    end = append(end, "clock drift: ");
-    end = append(end, tmp);
-    end = append(end, " ns/s\n");
-
-    // time accuracy
-    tmp[toBase(GPS_accTime(), 10, tmp)] = 0;
-    end = append(end, "time accuracy: ");
-    end = append(end, tmp);
-    end = append(end, " ns\n");
-
-    // frequency accuracy
-    tmp[toBase(GPS_accFreq(), 10, tmp)] = 0;
-    end = append(end, "frequency accuracy: ");
-    end = append(end, tmp);
-    end = append(end, " ps/s\n");
-
     return end - body;
 }
 

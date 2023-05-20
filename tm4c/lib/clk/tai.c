@@ -7,7 +7,6 @@
 #include "../../hw/interrupts.h"
 #include "../../hw/timer.h"
 #include "../delay.h"
-#include "../gps.h"
 #include "../run.h"
 #include "mono.h"
 #include "tai.h"
@@ -124,8 +123,6 @@ void initClkTai() {
     PPS_PORT.CR = 0;
     PPS_PORT.LOCK = 0;
 
-    // initialize UTC offset
-    clkTaiUtcOffset = ((uint64_t) GPS_taiOffset()) << 32;
     // schedule updates
     runSleep(1u << (32 - 2), runClkTai, NULL);
     runSleep(1u << (32 - 6), runPpsTai, NULL);

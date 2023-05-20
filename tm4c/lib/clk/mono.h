@@ -11,24 +11,6 @@
 #define CLK_FREQ (125000000)
 #define TIMER_MONO (GPTM0)
 
-/**
- * Precision Clock Event Structure
- */
-struct ClockEvent {
-    // monotonic clock state
-    uint32_t timer;
-    uint32_t offset;
-    uint32_t integer;
-    // compensated clock state
-    int32_t compRate;
-    uint64_t compRef;
-    uint64_t compOff;
-    // tai clock state
-    int32_t taiRate;
-    uint64_t taiRef;
-    uint64_t taiOff;
-};
-
 // raw internal monotonic clock state
 extern volatile uint32_t clkMonoInt;
 extern volatile uint32_t clkMonoOff;
@@ -36,8 +18,6 @@ extern volatile uint32_t clkMonoOff;
 extern volatile uint32_t clkMonoEth;
 // timer tick capture of the PPS output
 extern volatile uint32_t clkMonoPps;
-// pps edge capture state
-extern volatile struct ClockEvent clkMonoPpsEvent;
 
 /**
  * Returns the current value of the system clock (1s resolution)

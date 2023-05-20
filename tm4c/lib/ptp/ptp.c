@@ -4,21 +4,17 @@
 
 #include <memory.h>
 #include <math.h>
-#include "hw/emac.h"
-#include "lib/clk/tai.h"
-#include "lib/clk/util.h"
-#include "lib/led.h"
-#include "lib/net.h"
-#include "lib/net/eth.h"
-#include "lib/net/util.h"
-#include "lib/ntp/ntp.h"
-#include "lib/ntp/pll.h"
-#include "lib/run.h"
+#include "../../hw/emac.h"
+#include "../clk/tai.h"
+#include "../clk/util.h"
+#include "../led.h"
+#include "../net.h"
+#include "../net/eth.h"
+#include "../net/util.h"
+#include "../run.h"
+#include "pll.h"
 #include "ptp.h"
 
-
-#define PTP2_ANNC_LOG_INTV (2) // 4 s
-#define PTP2_SYNC_LOG_INTV (-2) // 4 Hz
 
 #define PTP2_MIN_SIZE (sizeof(HEADER_ETH) + sizeof(HEADER_PTP))
 #define PTP2_VERSION (2)
@@ -143,23 +139,18 @@ static float lutClkAccuracy[17] = {
 static void processDelayRequest(uint8_t *frame, int flen);
 static void processPDelayRequest(uint8_t *frame, int flen);
 
-static void sendAnnounce(void *ref);
-static void sendSync(void *ref);
-
 static void toPtpTimestamp(uint64_t ts, PTP2_TIMESTAMP *tsPtp);
 static uint32_t toPtpClkAccuracy(float rmsError);
 
 void PTP_init() {
+    PLL_init();
+
     // set clock ID to MAC address
     getMAC(clockId + 2);
     // IEEE 802.1AS multicast address
     EMAC_setMac(&(EMAC0.ADDR2), gPtpMac);
     // enable address matching
     EMAC0.ADDR2.HI.AE = 1;
-
-    // schedule periodic message transmission
-    runSleep(1ull << (32 + PTP2_ANNC_LOG_INTV), sendAnnounce, NULL);
-    runSleep(1ull << (32 + PTP2_SYNC_LOG_INTV), sendSync, NULL);
 }
 
 /**
@@ -290,104 +281,6 @@ static void processPDelayRequest(uint8_t *frame, int flen) {
     NET_transmit(txDesc, flen);
 }
 
-static void sendAnnounce(void *ref) {
-    int txDesc = NET_getTxDesc();
-    if(txDesc < 0) return;
-    // allocate and clear frame buffer
-    const int flen = PTP2_MIN_SIZE + sizeof(PTP2_ANNOUNCE);
-    uint8_t *frame = NET_getTxBuff(txDesc);
-    memset(frame, 0, flen);
-
-    // map headers
-    HEADER_ETH *headerEth = (HEADER_ETH *) frame;
-    HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
-    PTP2_ANNOUNCE *announce = (PTP2_ANNOUNCE *) (headerPTP + 1);
-
-    // IEEE 802.1AS
-    headerEth->ethType = ETHTYPE_PTP;
-    copyMAC(headerEth->macDst, gPtpMac);
-
-    // PTP header
-    headerPTP->versionPTP = PTP2_VERSION;
-    headerPTP->messageType = PTP2_MT_ANNOUNCE;
-    headerPTP->messageLength = __builtin_bswap16(sizeof(HEADER_PTP) + sizeof(PTP2_ANNOUNCE));
-    memcpy(headerPTP->sourceIdentity.identity, clockId, sizeof(clockId));
-    headerPTP->sourceIdentity.portNumber = 0;
-    headerPTP->domainNumber = PTP2_DOMAIN;
-    headerPTP->logMessageInterval = PTP2_ANNC_LOG_INTV;
-    headerPTP->sequenceId = __builtin_bswap16(seqId++);
-
-    // PTP Announce
-    announce->timeSource = (NTP_refId() == NTP_REF_GPS) ? PTP2_TSRC_GPS : PTP2_TSRC_NTP;
-    announce->currentUtcOffset = (clkTaiUtcOffset >> 32);
-    memcpy(announce->grandMasterIdentity, clockId, sizeof(clockId));
-    announce->grandMasterPriority = 0;
-    announce->grandMasterPriority2 = 0;
-    announce->stepsRemoved = 0;
-    announce->grandMasterClockQuality = toPtpClkAccuracy(PLL_offsetRms());
-    toPtpTimestamp(CLK_TAI(), &(announce->originTimestamp));
-
-    // transmit request
-    NET_transmit(txDesc, flen);
-}
-
-static void syncFollowup(void *ref, uint8_t *txFrame, int flen) {
-    int txDesc = NET_getTxDesc();
-    if(txDesc < 0) return;
-    uint8_t *followup = NET_getTxBuff(txDesc);
-    memcpy(followup, txFrame, flen);
-
-    // get precise TX time
-    uint64_t stamps[3];
-    NET_getTxTime(txFrame, stamps);
-
-    // map headers
-    HEADER_ETH *headerEth = (HEADER_ETH *) followup;
-    HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
-    PTP2_TIMESTAMP *sync = (PTP2_TIMESTAMP *) (headerPTP + 1);
-
-    // set followup fields
-    headerPTP->messageType = PTP2_MT_FOLLOW_UP;
-    toPtpTimestamp(stamps[2], sync);
-
-    // transmit request
-    NET_transmit(txDesc, flen);
-}
-
-static void sendSync(void *ref) {
-    int txDesc = NET_getTxDesc();
-    if(txDesc < 0) return;
-    // allocate and clear frame buffer
-    const int flen = PTP2_MIN_SIZE + sizeof(PTP2_TIMESTAMP);
-    uint8_t *frame = NET_getTxBuff(txDesc);
-    memset(frame, 0, flen);
-
-    // map headers
-    HEADER_ETH *headerEth = (HEADER_ETH *) frame;
-    HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
-    PTP2_TIMESTAMP *sync = (PTP2_TIMESTAMP *) (headerPTP + 1);
-
-    // IEEE 802.1AS
-    headerEth->ethType = ETHTYPE_PTP;
-    copyMAC(headerEth->macDst, gPtpMac);
-
-    headerPTP->versionPTP = PTP2_VERSION;
-    headerPTP->messageType = PTP2_MT_SYNC;
-    headerPTP->messageLength = __builtin_bswap16(sizeof(HEADER_PTP) + sizeof(PTP2_TIMESTAMP));
-    memcpy(headerPTP->sourceIdentity.identity, clockId, sizeof(clockId));
-    headerPTP->sourceIdentity.portNumber = 0;
-    headerPTP->domainNumber = PTP2_DOMAIN;
-    headerPTP->logMessageInterval = PTP2_SYNC_LOG_INTV;
-    headerPTP->sequenceId = __builtin_bswap16(seqId++);
-
-    // set preliminary timestamp
-    toPtpTimestamp(CLK_TAI(), sync);
-
-    // transmit request
-    NET_setTxCallback(txDesc, syncFollowup, NULL);
-    NET_transmit(txDesc, flen);
-}
-
 static void toPtpTimestamp(uint64_t ts, PTP2_TIMESTAMP *tsPtp) {
     union fixed_32_32 scratch;
     scratch.full = ts;
@@ -398,14 +291,4 @@ static void toPtpTimestamp(uint64_t ts, PTP2_TIMESTAMP *tsPtp) {
     scratch.ipart = 0;
     scratch.full *= 1000000000u;
     tsPtp->nanoseconds = __builtin_bswap32(scratch.ipart);
-}
-
-static uint32_t toPtpClkAccuracy(float rmsError) {
-    // check accuracy thresholds
-    for(int i = 0; i < 17; i++) {
-        if(rmsError <= lutClkAccuracy[i])
-            return 0x20 + i;
-    }
-    // greater than 10s
-    return 0x31;
 }

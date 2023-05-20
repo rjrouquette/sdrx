@@ -22,7 +22,7 @@
 #include "ntp.h"
 #include "peer.h"
 #include "ref.h"
-#include "pll.h"
+#include "../ptp/pll.h"
 #include "../net/util.h"
 
 #define MAX_NTP_PEERS (8)

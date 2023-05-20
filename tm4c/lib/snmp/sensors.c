@@ -5,11 +5,10 @@
 #include <math.h>
 #include <string.h>
 #include "../clk/mono.h"
-#include "../ntp/pll.h"
-#include "../ntp/tcmp.h"
+#include "../ptp/pll.h"
+#include "../ptp/tcmp.h"
 #include "sensors.h"
 #include "util.h"
-#include "../gps.h"
 
 
 static const uint8_t OID_SENSOR_PREFIX[] = { 0x06, 0x0A, 0x2B, 6, 1, 2, 1, 99, 1, 1, 1 };
@@ -17,8 +16,6 @@ static const uint8_t OID_SENSOR_PREFIX[] = { 0x06, 0x0A, 0x2B, 6, 1, 2, 1, 99, 1
 
 // CPU temperature getter
 static int getCpuTemp()         { return lroundf(TCMP_temp() * 1e4f); }
-// GPS timing status getters
-static int getGpsHasFix()       { return GPS_hasFix() ? 1 : 2; }
 // PLL offset getters
 static int getPllOffsetLast()   { return lroundf(PLL_offsetLast() * 1e10f); }
 static int getPllOffsetMean()   { return lroundf(PLL_offsetMean() * 1e10f); }
@@ -45,13 +42,8 @@ static const struct SnmpSensor {
     uint8_t precision;
     int (*getter)();
 } snmpSensors[] = {
-        // GPS temperature
+        // CPU temperature
         { "cpu.temp",           "C",    OID_SENSOR_TYPE_CELSIUS,  OID_SENSOR_SCALE_1,     4, getCpuTemp         },
-        // GPS timing status
-        { "gps.hasFix",         "",     OID_SENSOR_TYPE_BOOL,     OID_SENSOR_SCALE_1,     0, getGpsHasFix       },
-        { "gps.taiOffset",      "s",    OID_SENSOR_TYPE_OTHER,    OID_SENSOR_SCALE_1,     0, GPS_taiOffset      },
-        { "gps.accuracy.time",  "s",    OID_SENSOR_TYPE_OTHER,    OID_SENSOR_SCALE_1E_9,  0, GPS_accTime        },
-        { "gps.accuracy.freq",  "s/s",  OID_SENSOR_TYPE_OTHER,    OID_SENSOR_SCALE_1E_12, 0, GPS_accFreq        },
         // PLL offset stats
         { "pll.offset.last",    "s",    OID_SENSOR_TYPE_OTHER,    OID_SENSOR_SCALE_1E_6,  4, getPllOffsetLast   },
         { "pll.offset.mean",    "s",    OID_SENSOR_TYPE_OTHER,    OID_SENSOR_SCALE_1E_6,  4, getPllOffsetMean   },

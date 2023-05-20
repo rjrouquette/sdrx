@@ -29,7 +29,6 @@ int readBytes(const uint8_t *data, int offset, int dlen, void *result, int *rlen
 int readInt32(const uint8_t *data, int offset, int dlen, uint32_t *result);
 int readOID(const uint8_t *data, int offset, int dlen, void *result, int *rlen);
 
-void sendBatt(uint8_t *frame);
 void sendSensors(uint8_t *frame);
 
 void SNMP_process(uint8_t *frame, int flen);
@@ -109,17 +108,9 @@ void SNMP_process(uint8_t *frame, int flen) {
                 section <<= 7;
                 section |= buffOID[sizeof(OID_PREFIX_MGMT)+1];
             }
-            switch (section) {
-                // GPSDO (Physical Sensors)
-                case 99:
-                    sendSensors(frame);
-                    break;
-                // battery
-                case 233:
-                    sendBatt(frame);
-                    break;
-                default:
-                    break;
+            // Physical Sensors
+            if(section == 99) {
+                sendSensors(frame);
             }
         }
     }
@@ -245,9 +236,6 @@ void sendResults(uint8_t *frame, uint8_t *data, int dlen) {
     IPv4_finalize(txFrame, flen);
     NET_transmit(txDesc, flen);
 }
-
-// sub units
-#include "snmp.batt.c"
 
 void sendSensors(uint8_t *frame) {
     // variable bindings
