@@ -259,7 +259,7 @@ static uint16_t chronycSourceData(CMD_Reply *cmdReply, const CMD_Request *cmdReq
 
     // set source id
     cmdReply->data.source_data.mode = htons(RPY_SD_MD_REF);
-    cmdReply->data.source_data.ip_addr.family = htons(IPADDR_UNSPEC);
+    cmdReply->data.source_data.ip_addr.family = htons(IPADDR_INET4);
     cmdReply->data.source_data.ip_addr.addr.in4 = source->id;
 
     cmdReply->data.source_data.stratum = htons(source->stratum);

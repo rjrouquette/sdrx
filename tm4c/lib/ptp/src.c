@@ -198,7 +198,7 @@ void PtpSource_init(PtpSource *this, uint8_t *frame, int flen) {
 
     this->mac[1] = 0;
     copyMAC(this->mac, headerEth->macSrc);
-    toHex(this->mac[1] & 0xFFFF, 4, '0', (char *) &(this->id));
+    toHex(__builtin_bswap16(this->mac[1] & 0xFFFF), 4, '0', (char *) &(this->id));
 }
 
 void PtpSource_run(PtpSource *this) {
