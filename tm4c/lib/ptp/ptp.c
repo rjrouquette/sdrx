@@ -155,7 +155,11 @@ static void runSelect(void *ref) {
 //    PLL_updateDrift(source->poll, source->freqDrift);
 }
 
-
+void ptpApplyOffset(int64_t offset) {
+    for(int i = 0; i < cntSources; i++) {
+        PtpSource_applyOffset(sourceSlots + i, offset);
+    }
+}
 
 
 // -----------------------------------------------------------------------------

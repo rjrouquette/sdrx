@@ -37,10 +37,14 @@ void PLL_init() {
     TCMP_init();
 }
 
+// from ptp.c
+void ptpApplyOffset(int64_t offset);
+
 void PLL_updateOffset(int interval, int64_t offset) {
     // apply hard correction to TAI clock for large offsets
     if((offset > PLL_OFFSET_HARD_ALIGN) || (offset < -PLL_OFFSET_HARD_ALIGN)) {
         CLK_TAI_adjust(offset);
+        ptpApplyOffset(offset);
         offsetMS = 0;
         return;
     }
