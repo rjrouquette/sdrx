@@ -51,8 +51,8 @@ void PTP_init() {
     getMAC(clockId + 2);
     // listen for chronyc status requests
     UDP_register(DEFAULT_CANDM_PORT, chronycRequest);
-    // update source selection at 16 Hz
-    runSleep(1u << (32 - 4), runSelect, NULL);
+    // update source selection every second
+    runSleep(1ull << 32, runSelect, NULL);
 }
 
 /**
@@ -152,7 +152,7 @@ static void runSelect(void *ref) {
     // update offset compensation
     PLL_updateOffset(source->poll, source->pollSample[source->samplePtr].offset);
     // update frequency compensation
-//    PLL_updateDrift(source->poll, source->freqDrift);
+    PLL_updateDrift(source->poll, source->freqDrift);
 }
 
 void ptpApplyOffset(int64_t offset) {
