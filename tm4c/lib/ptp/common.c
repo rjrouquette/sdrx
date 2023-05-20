@@ -31,18 +31,20 @@ void toPtpTimestamp(uint64_t ts, PTP2_TIMESTAMP *tsPtp) {
 }
 
 uint64_t fromPtpTimestamp(PTP2_TIMESTAMP *tsPtp) {
+    uint32_t nanos = __builtin_bswap32(tsPtp->nanoseconds);
+
     // compute correction value
     union fixed_32_32 scratch;
     // apply conversion factor
     scratch.ipart = 0;
-    scratch.fpart = tsPtp->nanoseconds << 2;
+    scratch.fpart = nanos << 2;
     scratch.full *= 0x12E0BE82;
     // round-to-nearest to minimize average error
     scratch.ipart += scratch.fpart >> 31;
     // combine correction value with base value
-    scratch.fpart = tsPtp->nanoseconds + scratch.ipart;
+    scratch.fpart = nanos + scratch.ipart;
     // set integer seconds
-    scratch.ipart = tsPtp->secondsLo;
+    scratch.ipart = __builtin_bswap32(tsPtp->secondsLo);
     // return assembled result
     return scratch.full;
 }
