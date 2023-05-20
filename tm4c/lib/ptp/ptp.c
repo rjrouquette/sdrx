@@ -179,7 +179,7 @@ void PTP_process(uint8_t *frame, int flen) {
     HEADER_ETH *headerEth = (HEADER_ETH *) frame;
     HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
 
-    LED_act1();
+    LED_act0();
 
     // ignore anything we sent ourselves
     if(isMyMAC(headerEth->macSrc) == 0)
