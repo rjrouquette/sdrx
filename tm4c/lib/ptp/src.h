@@ -31,13 +31,16 @@ struct PtpSource {
     int span;
 
     uint32_t mac[2];
+    uint64_t syncRxStamps[3];
     uint64_t lastUpdate;
+    uint32_t syncDelay;
     uint32_t id;
     uint32_t rootDelay;
     uint32_t rootDispersion;
     uint32_t rxCount;
     uint32_t rxValid;
     uint32_t txCount;
+    uint16_t syncSeq;
     uint16_t state;
     uint16_t reach;
     uint16_t stratum;

@@ -10,16 +10,17 @@
 #include "common.h"
 #include "src.h"
 #include "../format.h"
+#include "../net.h"
 
 static void getMeanVar(int cnt, const float *v, float *mean, float *var);
 
-void PtpSource_incr(PtpSource *this) {
+void incrFilter(PtpSource *this) {
     this->samplePtr = (this->samplePtr + 1) & (PTP_MAX_HISTORY - 1);
     if(++this->sampleCount > PTP_MAX_HISTORY)
         this->sampleCount = PTP_MAX_HISTORY;
 }
 
-void PtpSource_update(PtpSource *this) {
+void updateFilter(PtpSource *this) {
     const int head = this->samplePtr;
     PtpPollSample *sample = this->pollSample + head;
     this->lastOffsetOrig = toFloat(sample->offset);
@@ -191,6 +192,26 @@ void PtpSource_updateStatus(PtpSource *this) {
     this->prune |= (this->usedOffset > 7) && (this->delayMean > PTP_MAX_DELAY);
 }
 
+static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
+    // advance sample buffer
+    incrFilter(this);
+    // set current sample
+    PtpPollSample *sample = this->pollSample + this->samplePtr;
+    // set compensated reference time
+    const uint64_t comp = this->syncRxStamps[1];
+    sample->comp = comp;
+    // set TAI reference time
+    const uint64_t tai = this->syncRxStamps[2];
+    sample->taiSkew = tai - comp;
+    // compute TAI offset
+    uint64_t offset = (fromPtpTimestamp(ts) - tai) + this->syncDelay;
+    sample->offset = (int64_t) offset;
+    // record current delay
+    sample->delay = (float) (uint32_t) this->syncDelay;
+    // update filter
+    updateFilter(this);
+}
+
 void PtpSource_init(PtpSource *this, uint8_t *frame, int flen) {
     HEADER_ETH *headerEth = (HEADER_ETH *) frame;
     HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
@@ -208,6 +229,18 @@ void PtpSource_run(PtpSource *this) {
 void PtpSource_process(PtpSource *this, uint8_t *frame, int flen) {
     HEADER_ETH *headerEth = (HEADER_ETH *) frame;
     HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
+
+    if(headerPTP->messageType == PTP2_MT_SYNC) {
+        // process sync message (defer filter update until followup message)
+        this->syncSeq = headerPTP->sequenceId;
+        NET_getRxTime(frame, this->syncRxStamps);
+    }
+    else if(headerPTP->messageType == PTP2_MT_FOLLOW_UP) {
+        // process sync followup message
+        if(this->syncSeq == headerPTP->sequenceId) {
+            doSync(this, (PTP2_TIMESTAMP *) (headerPTP + 1));
+        }
+    }
 }
 
 void PtpSource_applyOffset(PtpSource *this, int64_t offset) {

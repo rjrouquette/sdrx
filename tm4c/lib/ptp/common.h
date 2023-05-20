@@ -132,6 +132,13 @@ extern const uint8_t gPtpMac[6];
 void toPtpTimestamp(uint64_t ts, PTP2_TIMESTAMP *tsPtp);
 
 /**
+ * Convert PTP timestamp to fixed-point 64-bit timestamp
+ * @param tsPtp PTP timestamp
+ * @return fixed-point 64-bit timestamp
+ */
+uint64_t fromPtpTimestamp(PTP2_TIMESTAMP *tsPtp);
+
+/**
  * Translate clock RMS error into PTP accuracy code
  * @param rmsError
  * @return PTP accuracy code
