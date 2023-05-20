@@ -152,7 +152,7 @@ static void runSelect(void *ref) {
     // update offset compensation
     PLL_updateOffset(source->poll, source->pollSample[source->samplePtr].offset);
     // update frequency compensation
-    PLL_updateDrift(source->poll, source->freqDrift);
+//    PLL_updateDrift(source->poll, source->freqDrift);
 }
 
 
