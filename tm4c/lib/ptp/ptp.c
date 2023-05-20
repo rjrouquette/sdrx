@@ -165,10 +165,6 @@ void PTP_init() {
 
     // set clock ID to MAC address
     getMAC(clockId + 2);
-    // IEEE 802.1AS multicast address
-    EMAC_setMac(&(EMAC0.ADDR2), gPtpMac);
-    // enable address matching
-    EMAC0.ADDR2.HI.AE = 1;
 
     // listen for chronyc status requests
     UDP_register(DEFAULT_CANDM_PORT, chronycRequest);

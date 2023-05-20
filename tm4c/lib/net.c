@@ -157,10 +157,6 @@ static void initHwAddr() {
     EMAC_setMac(&(EMAC0.ADDR0), macAddr);
     // disable CRC module
     RCGCCCM.EN = 0;
-
-    // enable reception of ARP broadcast packets
-    EMAC_setMac(&(EMAC0.ADDR1), arpMultiMac);
-    EMAC0.ADDR1.HI.AE = 1;
 }
 
 static void initMAC() {
