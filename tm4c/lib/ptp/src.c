@@ -204,7 +204,8 @@ static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
     const uint64_t tai = this->syncRxStamps[2];
     sample->taiSkew = tai - comp;
     // compute TAI offset
-    uint64_t offset = (fromPtpTimestamp(ts) - tai) + this->syncDelay;
+//    uint64_t offset = (fromPtpTimestamp(ts) - tai) + this->syncDelay;
+    uint64_t offset = 0;
     sample->offset = (int64_t) offset;
     // record current delay
     sample->delay = (float) this->syncDelay;
