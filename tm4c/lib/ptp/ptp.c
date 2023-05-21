@@ -198,6 +198,8 @@ static void runMeasure(void *ref) {
             ++cnt;
         }
     }
+    cntSamples = 0;
+    if(cnt < 2) return;
 
     // recompute means
     meanX = 0, meanY = 0;
@@ -207,13 +209,6 @@ static void runMeasure(void *ref) {
     }
     meanX /= (float) cnt;
     meanY /= (float) cnt;
-
-    if(cnt < 2) {
-        offsetDrift = 0;
-        offsetMean = meanY;
-        offsetStdDev = 0;
-        return;
-    }
 
     // recompute beta
     xx = 0, xy = 0;
