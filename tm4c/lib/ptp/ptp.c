@@ -143,7 +143,7 @@ static void runDelay(void *ref) {
 }
 
 static void runMeasure(void *ref) {
-    if(cntSamples < 2) {
+    if(cntSamples < 3) {
         cntSamples = 0;
         return;
     }
@@ -172,7 +172,7 @@ static void runMeasure(void *ref) {
         xx += a * a;
         xy += a * b;
     }
-    float beta = xy / xx;
+    float beta = (xx == 0) ? 0 : (xy / xx);
 
     // compute residual
     float res = 0;
@@ -208,27 +208,34 @@ static void runMeasure(void *ref) {
     meanX /= (float) cnt;
     meanY /= (float) cnt;
 
+    if(cnt < 2) {
+        offsetDrift = 0;
+        offsetMean = meanY;
+        offsetStdDev = 0;
+        return;
+    }
+
     // recompute beta
     xx = 0, xy = 0;
-    for(int i = 0; i < cntSamples; i++) {
+    for(int i = 0; i < cnt; i++) {
         float a = x[i] - meanX;
         float b = y[i] - meanY;
 
         xx += a * a;
         xy += a * b;
     }
-    beta = xy / xx;
+    beta = (xx == 0) ? 0 : (xy / xx);
 
     // recompute residual
     res = 0;
-    for(int i = 0; i < cntSamples; i++) {
+    for(int i = 0; i < cnt; i++) {
         float a = x[i] - meanX;
         float b = y[i] - meanY;
 
         float z = b - beta * a;
         res += z * z;
     }
-    res /=  (float) (cntSamples - 1);
+    res /=  (float) (cnt - 1);
 
     // compute final result
     offsetDrift = beta;
