@@ -51,6 +51,7 @@ static PtpSource sources[PTP_MAX_SRCS];
 static int ptrSamples;
 static int cntSamples;
 
+static float offsetDrift;
 static float offsetMean;
 static float offsetStdDev;
 
@@ -230,6 +231,7 @@ static void runMeasure(void *ref) {
     res /=  (float) (cntSamples - 1);
 
     // compute final result
+    offsetDrift = beta;
     offsetMean = meanY + (beta * (toFloat((int64_t) (CLK_TAI() - xOff)) - meanX));
     offsetStdDev = sqrtf(res);
 
@@ -368,6 +370,11 @@ unsigned PTP_status(char *buffer) {
     }
 
     end = append(end, "\noffset measurement:\n");
+
+    tmp[fmtFloat(offsetDrift * 1e6f, 12, 3, tmp)] = 0;
+    end = append(end, "  - drift: ");
+    end = append(end, tmp);
+    end = append(end, " ppm\n");
 
     tmp[fmtFloat(offsetMean * 1e6f, 12, 3, tmp)] = 0;
     end = append(end, "  - mean:  ");
