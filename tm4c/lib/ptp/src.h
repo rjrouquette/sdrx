@@ -39,7 +39,7 @@ struct PtpSource {
     uint32_t id;
     uint32_t rootDelay;
     uint32_t rootDispersion;
-    uint16_t syncSeq;
+    uint16_t seqSync;
     uint16_t state;
     uint16_t reach;
     int16_t poll;

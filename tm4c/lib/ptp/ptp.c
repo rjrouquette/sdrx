@@ -4,6 +4,7 @@
 
 #include <memory.h>
 #include <math.h>
+#include <stdbool.h>
 #include "../clk/comp.h"
 #include "../clk/mono.h"
 #include "../clk/tai.h"
@@ -30,6 +31,9 @@ typedef struct PtpSource {
     uint64_t txLocal;
     uint64_t txRemote;
     uint32_t delay;
+    uint16_t seqDelay;
+    uint16_t seqSync;
+    int8_t syncRate;
 } PtpSource;
 
 
@@ -42,9 +46,14 @@ static volatile float rootDispersion;
 
 static PtpSource sources[PTP_MAX_SRCS];
 
-// allocate PTP source
-static void allocSource(uint8_t *frame, int flen);
+// source internal state functions
+static void sourceDelay(PtpSource *src);
+static void sourceDelayTx(void *ref, uint8_t *frame, int flen);
+static void sourceRequestDelay(PtpSource *src);
+static void sourceRx(PtpSource *src, uint8_t *frame, int flen);
+static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts);
 
+static void runDelay(void *ref);
 static void runSelect(void *ref);
 
 // chronyc request handler
@@ -55,7 +64,9 @@ void PTP_init() {
 
     // set clock ID to MAC address
     getMAC(ptpClockId + 2);
-    // update source selection at 16Hz
+    // update source delay at 2 Hz
+    runSleep(1u << (32 - 1), runDelay, NULL);
+    // update source selection at 16 Hz
     runSleep(1u << (32 - 4), runSelect, NULL);
 }
 
@@ -87,7 +98,7 @@ void PTP_process(uint8_t *frame, int flen) {
     // look for matching source
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(mac != sources[i].mac) continue;
-
+        sourceRx(sources + i, frame, flen);
         return;
     }
 
@@ -104,16 +115,21 @@ void PTP_process(uint8_t *frame, int flen) {
         }
         return;
     }
-    // check if source is already active
-    for(int i = 0; i < PTP_MAX_SRCS; i++) {
-        if(sources[i].mac == mac) return;
-    }
     // activate as new source
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(sources[i].mac == 0) {
             sources[i].mac = mac;
+            sources[i].rxLocal = 0;
             return;
         }
+    }
+}
+
+
+static void runDelay(void *ref) {
+    for(int i = 0; i < PTP_MAX_SRCS; i++) {
+        if(sources[i].mac)
+            sourceRequestDelay(sources + i);
     }
 }
 
@@ -169,17 +185,126 @@ void ptpApplyOffset(int64_t offset) {
 }
 
 
+static void sourceDelay(PtpSource *src) {
+    // wait for both timestamps
+    if(!src->rxRemote) return;
+    if(!src->txLocal) return;
+
+    // compute delay using most recent sync
+    uint64_t delay = src->txLocal + src->txRemote;
+    delay -= src->rxLocal + src->rxRemote;
+    src->delay = delay / 2;
+}
+
+static void sourceDelayTx(void *ref, uint8_t *frame, int flen) {
+    PtpSource *src = (PtpSource *) ref;
+    uint64_t stamps[3];
+    NET_getTxTime(frame, stamps);
+    src->txLocal = stamps[2];
+    sourceDelay(src);
+}
+
+static void sourceRequestDelay(PtpSource *src) {
+    if(!src->rxLocal) return;
+
+    int txDesc = NET_getTxDesc();
+    if(txDesc < 0) return;
+    // allocate and clear frame buffer
+    const int flen = PTP2_MIN_SIZE + sizeof(PTP2_TIMESTAMP);
+    uint8_t *frame = NET_getTxBuff(txDesc);
+    memset(frame, 0, flen);
+
+    // map headers
+    HEADER_ETH *headerEth = (HEADER_ETH *) frame;
+    HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
+    PTP2_TIMESTAMP *origin = (PTP2_TIMESTAMP *) (headerPTP + 1);
+
+    // IEEE 802.1AS
+    headerEth->ethType = ETHTYPE_PTP;
+    copyMAC(headerEth->macDst, gPtpMac);
+
+    headerPTP->versionPTP = PTP2_VERSION;
+    headerPTP->messageType = PTP2_MT_DELAY_REQ;
+    headerPTP->messageLength = __builtin_bswap16(sizeof(HEADER_PTP) + sizeof(PTP2_TIMESTAMP));
+    memcpy(headerPTP->sourceIdentity.identity, ptpClockId, sizeof(ptpClockId));
+    headerPTP->sourceIdentity.portNumber = 0;
+    headerPTP->domainNumber = PTP2_DOMAIN;
+    headerPTP->logMessageInterval = 0;
+    headerPTP->sequenceId = __builtin_bswap16(++src->seqDelay);
+
+    // set timestamp
+    toPtpTimestamp(CLK_TAI(), origin);
+
+    // clear status flags
+    src->rxRemote = 0;
+    src->txLocal = 0;
+
+    // transmit request
+    NET_setTxCallback(txDesc, sourceDelayTx, src);
+    NET_transmit(txDesc, flen);
+}
+
+static void sourceRx(PtpSource *src, uint8_t *frame, int flen) {
+    HEADER_ETH *headerEth = (HEADER_ETH *) frame;
+    HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
+
+    if(headerPTP->messageType == PTP2_MT_SYNC) {
+        // process sync message (defer filter update until followup message)
+        src->syncRate = (int8_t) headerPTP->logMessageInterval;
+        src->seqSync = headerPTP->sequenceId;
+        uint64_t stamps[3];
+        NET_getRxTime(frame, stamps);
+        src->rxLocal = stamps[2];
+    }
+    else if(headerPTP->messageType == PTP2_MT_FOLLOW_UP) {
+        // process sync followup message
+        if(src->seqSync == headerPTP->sequenceId) {
+            sourceSync(src, (PTP2_TIMESTAMP *) (headerPTP + 1));
+        }
+    }
+    else if(headerPTP->messageType == PTP2_MT_DELAY_RESP) {
+        if(src->seqDelay == __builtin_bswap16(headerPTP->sequenceId)) {
+            PTP2_DELAY_RESP *resp = (PTP2_DELAY_RESP *) (headerPTP + 1);
+            src->rxRemote = fromPtpTimestamp(&(resp->receiveTimestamp));
+            sourceDelay(src);
+        }
+    }
+}
+
+static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts) {
+    src->txRemote = fromPtpTimestamp(ts);
+
+//    // advance sample buffer
+//    incrFilter(src);
+//    // set current sample
+//    PtpPollSample *sample = src->pollSample + src->samplePtr;
+//    // set compensated reference time
+//    const uint64_t comp = src->syncRxStamps[1];
+//    sample->comp = comp;
+//    // set TAI reference time
+//    const uint64_t tai = src->syncRxStamps[2];
+//    sample->taiSkew = tai - comp;
+//    // compute TAI offset
+//    uint64_t offset = (fromPtpTimestamp(ts) - tai) + src->delay;
+//    sample->offset = (int64_t) offset;
+}
+
+
+
 unsigned PTP_status(char *buffer) {
     char tmp[32];
     char *end = buffer;
 
-    end = append(end, "active sources:\n");
+    end = append(end, "MAC Address     Sync Delay\n");
     // display sources
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(sources[i].mac == 0) continue;
-        end = append(end, "- ");
         end = macToStr(&(sources[i].mac), end);
 
+        *(end++) = ' ';
+        end += fmtFloat((float) sources[i].syncRate, 4, 0, end);
+
+        *(end++) = ' ';
         tmp[fmtFloat(1e6f * 0x1p-32f * (float) sources[i].delay, 12, 3, tmp)] = 0;
         end = append(end, tmp);
         end = append(end, " us\n");
