@@ -25,7 +25,7 @@ void PLL_init();
  * @param interval the current update interval in log2 seconds
  * @param offset the most recent offset sample
  */
-void PLL_updateOffset(int interval, int64_t offset, float fltOffset);
+void PLL_updateOffset(int interval, int64_t offset);
 
 /**
  * Update the frequency drift correction PLL.
