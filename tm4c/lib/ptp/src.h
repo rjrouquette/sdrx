@@ -30,6 +30,7 @@ struct PtpSource {
 
     uint32_t mac[2];
     int64_t delayOffset;
+    uint64_t delayRxStamp;
     uint64_t delayTxStamp;
     uint64_t syncRxStamps[3];
     uint64_t lastUpdate;
@@ -58,6 +59,9 @@ struct PtpSource {
     float freqSkew;
     // overall score
     float score;
+
+    bool delayRxReady;
+    bool delayTxReady;
 
 };
 typedef struct PtpSource PtpSource;

@@ -153,11 +153,33 @@ static void getMeanVar(const int cnt, const float *v, float *mean, float *var) {
     *var = _var;
 }
 
+static void doDelay(PtpSource *this) {
+    // wait for both timestamps
+    if(!this->delayRxReady) return;
+    if(!this->delayTxReady) return;
+
+    // clear flags
+    this->delayRxReady = false;
+    this->delayTxReady = false;
+
+    // compute delay using most recent sync
+    int64_t delay = this->delayOffset - this->syncDelay;
+    delay += (int64_t) (this->delayTxStamp - this->delayRxStamp);
+    delay = (-delay) / 2;
+
+    // update delay
+    if(delay >= 0) {
+        this->syncDelay = delay;
+    }
+}
+
 static void delayTx(void *ref, uint8_t *txFrame, int flen) {
     PtpSource *this = (PtpSource *) ref;
     uint64_t stamps[3];
     NET_getTxTime(txFrame, stamps);
     this->delayTxStamp = stamps[2];
+    this->delayTxReady = true;
+    doDelay(this);
 }
 
 static void sendDelayRequest(PtpSource *this) {
@@ -190,8 +212,10 @@ static void sendDelayRequest(PtpSource *this) {
 
     // set timestamp
     toPtpTimestamp(CLK_TAI(), origin);
-    // record current offset
-    this->delayOffset = this->pollSample[this->samplePtr].offset;
+
+    // clear status flags
+    this->delayRxReady = false;
+    this->delayTxReady = false;
 
     // transmit request
     NET_setTxCallback(txDesc, delayTx, this);
@@ -228,18 +252,6 @@ static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
     sample->offset = (int64_t) offset;
     // record current delay
     sample->delay = 0x1p-32f * (float) this->syncDelay;
-}
-
-static void doDelay(PtpSource *this, PTP2_DELAY_RESP *resp) {
-    // compute delay using most recent sync
-    int64_t delay = this->delayOffset - this->syncDelay;
-    delay += (int64_t) (this->delayTxStamp - fromPtpTimestamp(&(resp->receiveTimestamp)));
-    delay = (-delay) / 2;
-
-    // update delay
-    if(delay >= 0) {
-        this->syncDelay = delay;
-    }
 }
 
 void PtpSource_init(PtpSource *this, uint8_t *frame, int flen) {
@@ -279,7 +291,10 @@ void PtpSource_process(PtpSource *this, uint8_t *frame, int flen) {
     }
     else if(headerPTP->messageType == PTP2_MT_DELAY_RESP) {
         if(this->seqId == __builtin_bswap16(headerPTP->sequenceId)) {
-            doDelay(this, (PTP2_DELAY_RESP *) (headerPTP + 1));
+            PTP2_DELAY_RESP *resp = (PTP2_DELAY_RESP *) (headerPTP + 1);
+            this->delayRxStamp = fromPtpTimestamp(&(resp->receiveTimestamp));
+            this->delayRxReady = true;
+            doDelay(this);
         }
     }
 }
