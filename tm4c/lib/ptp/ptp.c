@@ -151,9 +151,9 @@ static void runSelect(void *ref) {
 //    rootDispersion = source->rootDispersion + (uint32_t) (0x1p16f * source->delayStdDev);
 
     // update offset compensation
-    PLL_updateOffset(1, source->pollSample[source->samplePtr].offset);
+    PLL_updateOffset(0, source->pollSample[source->samplePtr].offset);
     // update frequency compensation
-    PLL_updateDrift(1, source->freqDrift);
+    PLL_updateDrift(0, source->freqDrift);
 }
 
 void ptpApplyOffset(int64_t offset) {
