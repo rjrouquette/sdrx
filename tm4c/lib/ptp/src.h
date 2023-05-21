@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define PTP_MAX_HISTORY (32)
+#define PTP_MAX_HISTORY (16)
 
 struct PtpPollSample {
     int64_t offset;
@@ -62,7 +62,6 @@ struct PtpSource {
 
     bool delayRxReady;
     bool delayTxReady;
-    bool updateReady;
 
 };
 typedef struct PtpSource PtpSource;

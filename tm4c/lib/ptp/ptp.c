@@ -104,7 +104,7 @@ static void allocSource(uint8_t *frame, int flen) {
             // append to source list
             sources[cntSources++] = slot;
             // start source updates
-            runSleep(1u << (32 - 4), (SchedulerCallback) PtpSource_run, slot);
+            runSleep(1ull << 32, (SchedulerCallback) PtpSource_run, slot);
             // return instance
             return;
         }
@@ -151,7 +151,7 @@ static void runSelect(void *ref) {
 //    rootDispersion = source->rootDispersion + (uint32_t) (0x1p16f * source->delayStdDev);
 
     // update offset compensation
-    PLL_updateOffset(0, source->pollSample[source->samplePtr].offset);
+    PLL_updateOffset(source->poll + 5, source->pollSample[source->samplePtr].offset, source->offsetMean);
     // update frequency compensation
     PLL_updateDrift(source->freqDrift);
 }

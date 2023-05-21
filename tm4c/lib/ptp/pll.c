@@ -40,7 +40,7 @@ void PLL_init() {
 // from ptp.c
 void ptpApplyOffset(int64_t offset);
 
-void PLL_updateOffset(int interval, int64_t offset) {
+void PLL_updateOffset(const int interval, const int64_t offset, const float fltOffset) {
     // apply hard correction to TAI clock for large offsets
     if((offset > PLL_OFFSET_HARD_ALIGN) || (offset < -PLL_OFFSET_HARD_ALIGN)) {
         CLK_TAI_adjust(offset);
@@ -49,7 +49,6 @@ void PLL_updateOffset(int interval, int64_t offset) {
         return;
     }
 
-    const float fltOffset = 0x1p-32f * (float) (int32_t) offset;
     offsetLast = fltOffset;
     if(offsetMS == 0) {
         // initialize stats
@@ -88,7 +87,7 @@ void PLL_updateOffset(int interval, int64_t offset) {
     CLK_TAI_setTrim((int32_t) (0x1p32f * trim));
 }
 
-void PLL_updateDrift(float drift) {
+void PLL_updateDrift(const float drift) {
     // update temperature compensation
     driftFreq = drift + (0x1p-32f * (float) CLK_COMP_getComp());
     TCMP_update(driftFreq);

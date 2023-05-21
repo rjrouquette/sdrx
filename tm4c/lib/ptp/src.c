@@ -252,8 +252,6 @@ static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
     sample->offset = (int64_t) offset;
     // record current delay
     sample->delay = 0x1p-32f * (float) this->syncDelay;
-    // mark as ready for update
-    this->updateReady = true;
 }
 
 void PtpSource_init(PtpSource *this, uint8_t *frame, int flen) {
@@ -267,13 +265,10 @@ void PtpSource_init(PtpSource *this, uint8_t *frame, int flen) {
 }
 
 void PtpSource_run(PtpSource *this) {
-    if(this->updateReady) {
-        this->updateReady = false;
-        // send delay request
-        sendDelayRequest(this);
-        // update filter
-        updateFilter(this);
-    }
+    // send delay request
+    sendDelayRequest(this);
+    // update filter
+    updateFilter(this);
 }
 
 void PtpSource_process(PtpSource *this, uint8_t *frame, int flen) {
