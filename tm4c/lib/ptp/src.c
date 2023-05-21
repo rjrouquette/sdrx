@@ -155,7 +155,9 @@ static void getMeanVar(const int cnt, const float *v, float *mean, float *var) {
 
 static void delayTx(void *ref, uint8_t *txFrame, int flen) {
     PtpSource *this = (PtpSource *) ref;
-    NET_getTxTime(txFrame, this->delayTxStamps);
+    uint64_t stamps[3];
+    NET_getTxTime(txFrame, stamps);
+    this->delayTxStamp = stamps[2];
 }
 
 static void sendDelayRequest(PtpSource *this) {
@@ -229,7 +231,7 @@ static void doDelay(PtpSource *this, PTP2_DELAY_RESP *resp) {
 
     // compute delay using most recent sync
     int64_t delay = this->pollSample[this->samplePtr].offset - this->syncDelay;
-    delay += (int64_t) (this->delayTxStamps[2] - fromPtpTimestamp(&(resp->receiveTimestamp)));
+    delay += (int64_t) (this->delayTxStamp - fromPtpTimestamp(&(resp->receiveTimestamp)));
     delay = (-delay) / 2;
 
     // update delay
