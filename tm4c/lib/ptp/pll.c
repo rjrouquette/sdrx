@@ -88,7 +88,7 @@ void PLL_updateOffset(int interval, int64_t offset) {
     CLK_TAI_setTrim((int32_t) (0x1p32f * trim));
 }
 
-void PLL_updateDrift(int interval, float drift) {
+void PLL_updateDrift(float drift) {
     // update temperature compensation
     driftFreq = drift + (0x1p-32f * (float) CLK_COMP_getComp());
     TCMP_update(driftFreq);

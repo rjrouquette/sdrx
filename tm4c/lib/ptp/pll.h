@@ -29,10 +29,9 @@ void PLL_updateOffset(int interval, int64_t offset);
 
 /**
  * Update the frequency drift correction PLL.
- * @param interval the current update interval in log2 seconds
  * @param drift the most recent drift rate
  */
-void PLL_updateDrift(int interval, float drift);
+void PLL_updateDrift(float drift);
 
 /**
  * Write human readable status to buffer

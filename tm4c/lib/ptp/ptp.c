@@ -153,7 +153,7 @@ static void runSelect(void *ref) {
     // update offset compensation
     PLL_updateOffset(0, source->pollSample[source->samplePtr].offset);
     // update frequency compensation
-    PLL_updateDrift(0, source->freqDrift);
+    PLL_updateDrift(source->freqDrift);
 }
 
 void ptpApplyOffset(int64_t offset) {
