@@ -221,7 +221,7 @@ static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
     uint64_t offset = (fromPtpTimestamp(ts) - tai) + this->syncDelay;
     sample->offset = (int64_t) offset;
     // record current delay
-    sample->delay = (float) this->syncDelay;
+    sample->delay = 0x1p-32f * (float) this->syncDelay;
 }
 
 static void doDelay(PtpSource *this, PTP2_DELAY_RESP *resp) {
