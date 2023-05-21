@@ -182,7 +182,7 @@ static void sendDelayRequest(PtpSource *this) {
     headerPTP->sourceIdentity.portNumber = 0;
     headerPTP->domainNumber = PTP2_DOMAIN;
     headerPTP->logMessageInterval = 0;
-    headerPTP->sequenceId = __builtin_bswap16(this->seqId++);
+    headerPTP->sequenceId = __builtin_bswap16(++this->seqId);
 
     // set preliminary timestamp
     toPtpTimestamp(CLK_TAI(), origin);
