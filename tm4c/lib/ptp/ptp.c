@@ -4,7 +4,6 @@
 
 #include <memory.h>
 #include <math.h>
-#include <stdbool.h>
 #include "../clk/comp.h"
 #include "../clk/mono.h"
 #include "../clk/tai.h"
@@ -21,8 +20,15 @@
 #include "pll.h"
 #include "ptp.h"
 
+#define PTP_MAX_SAMPLES (32)
 #define PTP_MAX_SRCS (8)
 #define PTP_MIN_ACCURACY (250e-9f)
+
+
+typedef struct PtpSample {
+    uint64_t local;
+    uint64_t remote;
+} PtpSample;
 
 typedef struct PtpSource {
     uint64_t mac;
@@ -39,12 +45,11 @@ typedef struct PtpSource {
 
 uint8_t ptpClockId[8];
 
-static volatile uint64_t lastUpdate;
-static volatile uint32_t refId;
-static volatile float rootDelay;
-static volatile float rootDispersion;
-
+static PtpSample samples[PTP_MAX_SAMPLES];
 static PtpSource sources[PTP_MAX_SRCS];
+
+static int ptrSamples;
+static int cntSamples;
 
 // source internal state functions
 static void sourceDelay(PtpSource *src);
@@ -54,7 +59,7 @@ static void sourceRx(PtpSource *src, uint8_t *frame, int flen);
 static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts);
 
 static void runDelay(void *ref);
-static void runSelect(void *ref);
+static void runMeasure(void *ref);
 
 // chronyc request handler
 static void chronycRequest(uint8_t *frame, int flen);
@@ -65,9 +70,9 @@ void PTP_init() {
     // set clock ID to MAC address
     getMAC(ptpClockId + 2);
     // update source delay at 2 Hz
-    runSleep(1u << (32 - 1), runDelay, NULL);
-    // update source selection at 16 Hz
-    runSleep(1u << (32 - 4), runSelect, NULL);
+    runSleep(1ull << 31, runDelay, NULL);
+    // update offset measurement every second
+    runSleep(1ull << 32, runMeasure, NULL);
 }
 
 /**
@@ -133,7 +138,7 @@ static void runDelay(void *ref) {
     }
 }
 
-static void runSelect(void *ref) {
+static void runMeasure(void *ref) {
 //    // select best clock
 //    uint64_t now = CLK_MONO();
 //    sourcePrimary = NULL;
@@ -272,21 +277,16 @@ static void sourceRx(PtpSource *src, uint8_t *frame, int flen) {
 }
 
 static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts) {
+    // update remote transmit timestamp
     src->txRemote = fromPtpTimestamp(ts);
 
-//    // advance sample buffer
-//    incrFilter(src);
-//    // set current sample
-//    PtpPollSample *sample = src->pollSample + src->samplePtr;
-//    // set compensated reference time
-//    const uint64_t comp = src->syncRxStamps[1];
-//    sample->comp = comp;
-//    // set TAI reference time
-//    const uint64_t tai = src->syncRxStamps[2];
-//    sample->taiSkew = tai - comp;
-//    // compute TAI offset
-//    uint64_t offset = (fromPtpTimestamp(ts) - tai) + src->delay;
-//    sample->offset = (int64_t) offset;
+    // store sample
+    samples[ptrSamples].local = src->rxLocal;
+    samples[ptrSamples].remote = src->txRemote + src->delay;
+    // advance sample pointer
+    ptrSamples = (ptrSamples + 1) & (PTP_MAX_SAMPLES - 1);
+    if(cntSamples < PTP_MAX_SAMPLES)
+        ++cntSamples;
 }
 
 
@@ -295,7 +295,7 @@ unsigned PTP_status(char *buffer) {
     char tmp[32];
     char *end = buffer;
 
-    end = append(end, "MAC Address     Sync Delay\n");
+    end = append(end, "MAC Address       Sync  Delay\n");
     // display sources
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(sources[i].mac == 0) continue;
