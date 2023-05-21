@@ -21,7 +21,7 @@
 #include "ptp.h"
 #include "src.h"
 
-#define PTP_MAX_SRCS (8)
+#define PTP_MAX_SRCS (4)
 #define PTP_MAX_SKEW (5e-6f)
 
 static uint8_t clockId[8];

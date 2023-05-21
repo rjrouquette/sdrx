@@ -8,9 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define PTP_MAX_HISTORY (16)
-#define PTP_MAX_STRAT (3)
-#define PTP_MAX_DELAY (50e-3f)
+#define PTP_MAX_HISTORY (32)
 
 struct PtpPollSample {
     int64_t offset;
