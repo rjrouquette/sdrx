@@ -230,11 +230,11 @@ static void doDelay(PtpSource *this, PTP2_DELAY_RESP *resp) {
     // compute delay using most recent sync
     int64_t delay = this->pollSample[this->samplePtr].offset - this->syncDelay;
     delay += (int64_t) (this->delayTxStamps[2] - fromPtpTimestamp(&(resp->receiveTimestamp)));
-    delay /= 2;
+    delay = (-delay) / 2;
 
     // update delay
-    if(delay <= 0) {
-        this->syncDelay = -delay;
+    if(delay >= 0) {
+        this->syncDelay = delay;
     }
 }
 
