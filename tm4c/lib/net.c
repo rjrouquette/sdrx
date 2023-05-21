@@ -33,7 +33,7 @@
 #define TX_BUFF_SIZE (1520)
 
 #define RX_POLL_INTV (1u << (32 - 16))
-#define TX_POLL_INTV (1u << (32 - 18))
+#define TX_POLL_INTV (1u << (32 - 19))
 
 #define ADV_RING_RX(ptr) ((ptr) = ((ptr) + 1) & RX_RING_MASK)
 #define ADV_RING_TX(ptr) ((ptr) = ((ptr) + 1) & TX_RING_MASK)
