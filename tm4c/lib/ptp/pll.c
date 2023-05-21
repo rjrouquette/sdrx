@@ -49,7 +49,7 @@ void PLL_updateOffset(int interval, int64_t offset) {
         return;
     }
 
-    const float fltOffset = (float) (int32_t) offset;
+    const float fltOffset = 0x1p-32f * (float) (int32_t) offset;
     offsetLast = fltOffset;
     if(offsetMS == 0) {
         // initialize stats
