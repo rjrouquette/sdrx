@@ -109,11 +109,11 @@ void DHCP_init() {
     for(int i = 1; i < 4; i++)
         dhcpUUID += UNIQUEID.WORD[i];
     // create "unique" hostname
-    strcpy(hostname, "gpsdo-");
+    strcpy(hostname, "sdrx-");
     for(int i = 0; i < 4; i++) {
-        hostname[6 + i] = lut_hex[(dhcpUUID >> (i * 4)) & 0xF];
+        hostname[5 + i] = lut_hex[(dhcpUUID >> (i * 4)) & 0xF];
     }
-    hostname[10] = 0;
+    hostname[9] = 0;
     lenHostname = 10;
 
     // register DHCP client port
