@@ -169,7 +169,7 @@ static void runMeasure(void *ref) {
         float a = x[i] - meanX;
         float b = y[i] - meanY;
 
-        xx += b * b;
+        xx += a * a;
         xy += a * b;
     }
     float beta = xy / xx;
@@ -214,7 +214,7 @@ static void runMeasure(void *ref) {
         float a = x[i] - meanX;
         float b = y[i] - meanY;
 
-        xx += b * b;
+        xx += a * a;
         xy += a * b;
     }
     beta = xy / xx;
