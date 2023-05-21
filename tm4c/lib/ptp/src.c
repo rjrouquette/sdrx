@@ -268,6 +268,7 @@ void PtpSource_init(PtpSource *this, uint8_t *frame, int flen) {
 
 void PtpSource_run(PtpSource *this) {
     if(this->updateReady) {
+        this->updateReady = false;
         // send delay request
         sendDelayRequest(this);
         // update filter
