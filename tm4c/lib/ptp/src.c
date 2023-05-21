@@ -11,6 +11,7 @@
 #include "src.h"
 #include "../format.h"
 #include "../net.h"
+#include "../run.h"
 
 static void getMeanVar(int cnt, const float *v, float *mean, float *var);
 
@@ -146,7 +147,17 @@ static void getMeanVar(const int cnt, const float *v, float *mean, float *var) {
     *var = _var;
 }
 
+static void syncExpire(PtpSource *this) {
+    this->reach <<= 1;
+    // schedule next expiration
+    uint64_t expire = 1ull << (32 + this->poll);
+    expire |= 1ull << (31 + this->poll);
+    runOnce(expire, (SchedulerCallback) syncExpire, this);
+}
+
 static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
+    // update reach
+    this->reach = (this->reach << 1) | 1;
     // advance sample buffer
     incrFilter(this);
     // set current sample
@@ -189,10 +200,15 @@ void PtpSource_process(PtpSource *this, uint8_t *frame, int flen) {
         this->poll = (int16_t) (int8_t) headerPTP->logMessageInterval;
         this->syncSeq = headerPTP->sequenceId;
         NET_getRxTime(frame, this->syncRxStamps);
+        // schedule expiration
+        uint64_t expire = 1ull << (32 + this->poll);
+        expire |= 1ull << (31 + this->poll);
+        runOnce(expire, (SchedulerCallback) syncExpire, this);
     }
     else if(headerPTP->messageType == PTP2_MT_FOLLOW_UP) {
         // process sync followup message
         if(this->syncSeq == headerPTP->sequenceId) {
+            runCancel((SchedulerCallback) syncExpire, this);
             doSync(this, (PTP2_TIMESTAMP *) (headerPTP + 1));
         }
     }

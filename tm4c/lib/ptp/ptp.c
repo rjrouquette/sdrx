@@ -104,7 +104,7 @@ static void allocSource(uint8_t *frame, int flen) {
             // append to source list
             sources[cntSources++] = slot;
             // start source updates
-            runOnce((1u << 31), (SchedulerCallback) PtpSource_run, slot);
+            runSleep(1u << 31, (SchedulerCallback) PtpSource_run, slot);
             // return instance
             return;
         }
