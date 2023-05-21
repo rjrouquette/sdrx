@@ -158,10 +158,11 @@ static void delayTx(void *ref, uint8_t *txFrame, int flen) {
     uint64_t stamps[3];
     NET_getTxTime(txFrame, stamps);
     this->delayTxStamp = stamps[2];
-    this->delayOffset = this->pollSample[this->samplePtr].offset;
 }
 
 static void sendDelayRequest(PtpSource *this) {
+    if(this->sampleCount < 1) return;
+
     int txDesc = NET_getTxDesc();
     if(txDesc < 0) return;
     // allocate and clear frame buffer
@@ -187,8 +188,10 @@ static void sendDelayRequest(PtpSource *this) {
     headerPTP->logMessageInterval = 0;
     headerPTP->sequenceId = __builtin_bswap16(++this->seqId);
 
-    // set preliminary timestamp
+    // set timestamp
     toPtpTimestamp(CLK_TAI(), origin);
+    // record current offset
+    this->delayOffset = this->pollSample[this->samplePtr].offset;
 
     // transmit request
     NET_setTxCallback(txDesc, delayTx, this);
@@ -228,8 +231,6 @@ static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
 }
 
 static void doDelay(PtpSource *this, PTP2_DELAY_RESP *resp) {
-    if(this->sampleCount < 1) return;
-
     // compute delay using most recent sync
     int64_t delay = this->delayOffset - this->syncDelay;
     delay += (int64_t) (this->delayTxStamp - fromPtpTimestamp(&(resp->receiveTimestamp)));
