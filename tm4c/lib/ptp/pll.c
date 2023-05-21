@@ -8,6 +8,7 @@
 #include "../format.h"
 #include "pll.h"
 #include "tcmp.h"
+#include "../clk/util.h"
 
 
 // offset statistics
@@ -40,28 +41,45 @@ void PLL_init() {
 // from ptp.c
 void ptpApplyOffset(int64_t offset);
 
-void PLL_updateOffset(const int interval, const int64_t offset, const float fltOffset) {
-    // apply hard correction to TAI clock for large offsets
-    if((offset > PLL_OFFSET_HARD_ALIGN) || (offset < -PLL_OFFSET_HARD_ALIGN)) {
-        CLK_TAI_adjust(offset);
-        ptpApplyOffset(offset);
+void PLL_updateOffset(const float offset) {
+    // large offset delta
+    if(fabsf(offset) >= 1) {
+        union fixed_32_32 scratch;
+        scratch.fpart = 0;
+        scratch.ipart = lroundf(offset);
+        CLK_TAI_adjust((int64_t) scratch.full);
+        ptpApplyOffset((int64_t) scratch.full);
         offsetMS = 0;
         return;
     }
 
-    offsetLast = fltOffset;
+    // large offset delta
+    if(fabsf(offset) >= 1e-3f) {
+        if(offset < 0) {
+            uint64_t scratch = (uint32_t) -offset;
+            CLK_TAI_adjust((int64_t) -scratch);
+            ptpApplyOffset((int64_t) -scratch);
+        } else {
+            uint64_t scratch = (uint32_t) offset;
+            CLK_TAI_adjust((int64_t) scratch);
+            ptpApplyOffset((int64_t) scratch);
+        }
+        offsetMS = 0;
+    }
+
+    offsetLast = offset;
     if(offsetMS == 0) {
         // initialize stats
-        offsetMean = fltOffset;
-        offsetVar = fltOffset * fltOffset;
+        offsetMean = offset;
+        offsetVar = offset * offset;
         offsetMS = offsetVar;
-        offsetRms = fltOffset;
-        offsetStdDev = fltOffset;
+        offsetRms = offset;
+        offsetStdDev = offset;
     } else {
         // update stats
-        float diff = fltOffset - offsetMean;
+        float diff = offset - offsetMean;
         offsetVar += ((diff * diff) - offsetVar) * PLL_STATS_ALPHA;
-        offsetMS += ((fltOffset * fltOffset) - offsetMS) * PLL_STATS_ALPHA;
+        offsetMS += ((offset * offset) - offsetMS) * PLL_STATS_ALPHA;
         offsetMean += diff * PLL_STATS_ALPHA;
         offsetStdDev = sqrtf(offsetVar);
         offsetRms = sqrtf(offsetMS);
@@ -72,10 +90,8 @@ void PLL_updateOffset(const int interval, const int64_t offset, const float fltO
     // limit proportional rate
     if(rate > PLL_OFFSET_CORR_MAX) rate = PLL_OFFSET_CORR_MAX;
     if(rate < PLL_OFFSET_CORR_MIN) rate = PLL_OFFSET_CORR_MIN;
-    // adjust rate to match polling interval
-    rate *= 0x1p-16f * (float) (1u << (16 - interval));
     // update offset compensation
-    offsetProportion = fltOffset * rate;
+    offsetProportion = offset * rate;
     offsetIntegral += offsetProportion * PLL_OFFSET_INT_RATE;
     // limit integration range
     if(offsetIntegral >  PLL_MAX_FREQ_TRIM) offsetIntegral =  PLL_MAX_FREQ_TRIM;

@@ -51,6 +51,9 @@ static PtpSource sources[PTP_MAX_SRCS];
 static int ptrSamples;
 static int cntSamples;
 
+static float offsetMean;
+static float offsetStdDev;
+
 // source internal state functions
 static void sourceDelay(PtpSource *src);
 static void sourceDelayTx(void *ref, uint8_t *frame, int flen);
@@ -139,54 +142,108 @@ static void runDelay(void *ref) {
 }
 
 static void runMeasure(void *ref) {
-//    // select best clock
-//    uint64_t now = CLK_MONO();
-//    sourcePrimary = NULL;
-//    for(int i = 0; i < cntSources; i++) {
-//        if(((int64_t) (now - sources[i]->lastUpdate)) > (1ull << 32)) {
-//            sources[i]->state = RPY_SD_ST_UNSELECTED;
-//            continue;
-//        }
-//        if(sources[i]->usedOffset < 8 || sources[i]->usedDrift < 4) {
-//            sources[i]->state = RPY_SD_ST_FALSETICKER;
-//            continue;
-//        }
-//        if(sources[i]->freqSkew > PTP_MAX_SKEW) {
-//            sources[i]->state = RPY_SD_ST_JITTERY;
-//            continue;
-//        }
-//        sources[i]->state = RPY_SD_ST_SELECTABLE;
-//        if(sourcePrimary == NULL) {
-//            sourcePrimary = sources[i];
-//            continue;
-//        }
-//        if(sources[i]->score < sourcePrimary->score) {
-//            sourcePrimary = sources[i];
-//        }
-//    }
-//
-//    // sanity check source and check for update
-//    PtpSource *source = sourcePrimary;
-//    if(source == NULL) return;
-//    source->state = RPY_SD_ST_SELECTED;
-//    if(source->lastUpdate == lastUpdate) return;
-//    lastUpdate = source->lastUpdate;
-//
-//    // set status
-//    refId = source->id;
-////    rootDelay = source->rootDelay + (uint32_t) (0x1p16f * source->delayMean);
-////    rootDispersion = source->rootDispersion + (uint32_t) (0x1p16f * source->delayStdDev);
-//
-//    // update offset compensation
-//    PLL_updateOffset(source->poll + 4, source->pollSample[source->samplePtr].offset, source->offsetMean);
-//    // update frequency compensation
+    if(cntSamples < 2) {
+        cntSamples = 0;
+        return;
+    }
+
+    float x[cntSamples];
+    float y[cntSamples];
+
+    // compute means
+    uint64_t xOff = samples[(ptrSamples - 1) & (PTP_MAX_SAMPLES - 1)].local;
+    float meanX = 0, meanY = 0;
+    for(int i = 0; i < cntSamples; i++) {
+        int j = (ptrSamples - i - 1) & (PTP_MAX_SAMPLES - 1);
+        x[i] = toFloat((int64_t) (samples[j].local - xOff));
+        y[i] = toFloat((int64_t) (samples[j].remote - samples[j].local));
+        meanX += x[i];
+        meanY += y[i];
+    }
+    meanX /= (float) cntSamples;
+    meanY /= (float) cntSamples;
+
+    float xx = 0, xy = 0;
+    for(int i = 0; i < cntSamples; i++) {
+        float a = x[i] - meanX;
+        float b = y[i] - meanY;
+
+        xx += b * b;
+        xy += a * b;
+    }
+    float beta = xy / xx;
+
+    // compute residual
+    float res = 0;
+    for(int i = 0; i < cntSamples; i++) {
+        float a = x[i] - meanX;
+        float b = y[i] - meanY;
+
+        float z = b - beta * a;
+        res += z * z;
+    }
+    res /=  (float) (cntSamples - 1);
+
+    // remove outliers
+    int cnt = 0;
+    for(int i = 0; i < cntSamples; i++) {
+        float a = x[i] - meanX;
+        float b = y[i] - meanY;
+
+        float z = b - beta * a;
+        if(z * z < res) {
+            x[cnt] = x[i];
+            y[cnt] = y[i];
+            ++cnt;
+        }
+    }
+
+    // recompute means
+    meanX = 0, meanY = 0;
+    for(int i = 0; i < cnt; i++) {
+        meanX += x[i];
+        meanY += y[i];
+    }
+    meanX /= (float) cnt;
+    meanY /= (float) cnt;
+
+    // recompute beta
+    xx = 0, xy = 0;
+    for(int i = 0; i < cntSamples; i++) {
+        float a = x[i] - meanX;
+        float b = y[i] - meanY;
+
+        xx += b * b;
+        xy += a * b;
+    }
+    beta = xy / xx;
+
+    // recompute residual
+    res = 0;
+    for(int i = 0; i < cntSamples; i++) {
+        float a = x[i] - meanX;
+        float b = y[i] - meanY;
+
+        float z = b - beta * a;
+        res += z * z;
+    }
+    res /=  (float) (cntSamples - 1);
+
+    // compute final result
+    offsetMean = meanY + (beta * (toFloat((int64_t) (CLK_TAI() - xOff)) - meanX));
+    offsetStdDev = sqrtf(res);
+
+    // update offset compensation
+    PLL_updateOffset(offsetMean);
+    // update frequency compensation
 //    PLL_updateDrift(source->freqDrift);
 }
 
 void ptpApplyOffset(int64_t offset) {
-//    for(int i = 0; i < cntSources; i++) {
-//        PtpSource_applyOffset(sourceSlots + i, offset);
-//    }
+    for(int i = 0; i < PTP_MAX_SRCS; i++) {
+        sources[i].rxLocal += offset;
+        sources[i].txLocal += offset;
+    }
 }
 
 
@@ -305,10 +362,22 @@ unsigned PTP_status(char *buffer) {
         end += fmtFloat((float) sources[i].syncRate, 4, 0, end);
 
         *(end++) = ' ';
-        tmp[fmtFloat(1e6f * 0x1p-32f * (float) sources[i].delay, 12, 3, tmp)] = 0;
+        tmp[fmtFloat(1e6f * 0x1p-32f * (float) sources[i].delay, 8, 3, tmp)] = 0;
         end = append(end, tmp);
         end = append(end, " us\n");
     }
+
+    end = append(end, "\noffset measurement:\n");
+
+    tmp[fmtFloat(offsetMean * 1e6f, 12, 3, tmp)] = 0;
+    end = append(end, "  - mean:  ");
+    end = append(end, tmp);
+    end = append(end, " us\n");
+
+    tmp[fmtFloat(offsetStdDev * 1e6f, 12, 3, tmp)] = 0;
+    end = append(end, "  - dev:   ");
+    end = append(end, tmp);
+    end = append(end, " us\n");
 
     return end - buffer;
 }
