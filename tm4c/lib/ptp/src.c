@@ -274,7 +274,7 @@ void PtpSource_process(PtpSource *this, uint8_t *frame, int flen) {
         }
     }
     else if(headerPTP->messageType == PTP2_MT_DELAY_RESP) {
-        if(this->seqId == headerPTP->sequenceId) {
+        if(this->seqId == __builtin_bswap16(headerPTP->sequenceId)) {
             doDelay(this, (PTP2_DELAY_RESP *) (headerPTP + 1));
         }
     }
