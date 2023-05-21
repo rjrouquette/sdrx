@@ -62,6 +62,7 @@ struct PtpSource {
 
     bool delayRxReady;
     bool delayTxReady;
+    bool updateReady;
 
 };
 typedef struct PtpSource PtpSource;
