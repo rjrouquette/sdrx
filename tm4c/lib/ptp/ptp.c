@@ -315,7 +315,7 @@ static uint16_t chronycSourceData(CMD_Reply *cmdReply, const CMD_Request *cmdReq
     cmdReply->data.source_data.ip_addr.family = htons(IPADDR_INET4);
     cmdReply->data.source_data.ip_addr.addr.in4 = source->id;
 
-    cmdReply->data.source_data.stratum = htons(source->stratum);
+    cmdReply->data.source_data.stratum = htons(1);
     cmdReply->data.source_data.reachability = htons(source->reach & 0xFF);
     cmdReply->data.source_data.orig_latest_meas.f = htonf(source->lastOffsetOrig);
     cmdReply->data.source_data.latest_meas.f = htonf(source->lastOffset);

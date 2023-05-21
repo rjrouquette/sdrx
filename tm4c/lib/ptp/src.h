@@ -40,7 +40,6 @@ struct PtpSource {
     uint16_t syncSeq;
     uint16_t state;
     uint16_t reach;
-    uint16_t stratum;
     int16_t poll;
 
     // last sample offset
