@@ -192,7 +192,7 @@ static void runMeasure(void *ref) {
         float b = y[i] - meanY;
 
         float z = b - beta * a;
-        if(z * z < res) {
+        if(z * z <= res) {
             x[cnt] = x[i];
             y[cnt] = y[i];
             ++cnt;
