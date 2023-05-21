@@ -191,8 +191,8 @@ static void sourceDelay(PtpSource *src) {
     if(!src->txLocal) return;
 
     // compute delay using most recent sync
-    uint64_t delay = src->txLocal + src->txRemote;
-    delay -= src->rxLocal + src->rxRemote;
+    uint64_t delay = src->rxLocal + src->rxRemote;
+    delay -= src->txLocal + src->txRemote;
     src->delay = delay / 2;
 }
 
