@@ -146,52 +146,6 @@ static void getMeanVar(const int cnt, const float *v, float *mean, float *var) {
     *var = _var;
 }
 
-
-void PtpSource_updateStatus(PtpSource *this) {
-    // clear lost flag if peer was reached
-    if(this->reach & 0xF)
-        this->lost = false;
-
-    // increment poll counter
-    if(++this->pollCounter == 0)
-        this->pollCounter = -1;
-
-    // adjust poll interval
-    if(
-            this->sampleCount == PTP_MAX_HISTORY &&
-            (this->reach & 0xFF) == 0xFF &&
-            this->pollCounter >= 8 &&
-            this->poll < this->maxPoll
-    ) {
-        // reset the counter
-        this->pollCounter = 0;
-        // increase poll interval (increase update rate)
-        ++this->poll;
-        // sanity check
-        if(this->poll < this->minPoll)
-            this->poll = this->minPoll;
-    }
-    else if(
-            (this->reach & 0xF) == 0 &&
-            this->pollCounter >= 4
-    ) {
-        // mark association as lost
-        this->lost = true;
-        // reset the counter
-        this->pollCounter = 0;
-        // decrease poll interval (increase update rate)
-        if(this->poll > this->minPoll)
-            --this->poll;
-    }
-
-    // mark source for pruning if it is unreachable
-    this->prune = (this->reach == 0) && (this->pollCounter >= 16);
-    // mark source for pruning if its stratum is too high
-    this->prune |= this->stratum > PTP_MAX_STRAT;
-    // mark source for pruning if its delay is too high
-    this->prune |= (this->usedOffset > 7) && (this->delayMean > PTP_MAX_DELAY);
-}
-
 static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
     // advance sample buffer
     incrFilter(this);
@@ -232,6 +186,7 @@ void PtpSource_process(PtpSource *this, uint8_t *frame, int flen) {
 
     if(headerPTP->messageType == PTP2_MT_SYNC) {
         // process sync message (defer filter update until followup message)
+        this->poll = (int16_t) (int8_t) headerPTP->logMessageInterval;
         this->syncSeq = headerPTP->sequenceId;
         NET_getRxTime(frame, this->syncRxStamps);
     }

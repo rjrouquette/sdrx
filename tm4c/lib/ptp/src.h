@@ -37,17 +37,11 @@ struct PtpSource {
     uint32_t id;
     uint32_t rootDelay;
     uint32_t rootDispersion;
-    uint32_t rxCount;
-    uint32_t rxValid;
-    uint32_t txCount;
     uint16_t syncSeq;
     uint16_t state;
     uint16_t reach;
     uint16_t stratum;
     int16_t poll;
-    uint16_t pollCounter;
-    int16_t minPoll;
-    int16_t maxPoll;
 
     // last sample offset
     float lastOffset;
@@ -65,9 +59,6 @@ struct PtpSource {
     // overall score
     float score;
 
-    // status flags
-    bool prune;
-    bool lost;
 };
 typedef struct PtpSource PtpSource;
 

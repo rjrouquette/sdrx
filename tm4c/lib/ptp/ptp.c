@@ -22,7 +22,7 @@
 #include "src.h"
 
 #define PTP_MAX_SRCS (8)
-#define PTP_MAX_SKEW (10e-6f)
+#define PTP_MAX_SKEW (5e-6f)
 
 static uint8_t clockId[8];
 
@@ -113,9 +113,10 @@ static void allocSource(uint8_t *frame, int flen) {
 
 static void runSelect(void *ref) {
     // select best clock
+    uint64_t now = CLK_MONO();
     sourcePrimary = NULL;
     for(int i = 0; i < cntSources; i++) {
-        if(sources[i]->lost) {
+        if(((int64_t) (now - sources[i]->lastUpdate)) > (1ull << 32)) {
             sources[i]->state = RPY_SD_ST_UNSELECTED;
             continue;
         }
@@ -123,10 +124,10 @@ static void runSelect(void *ref) {
             sources[i]->state = RPY_SD_ST_FALSETICKER;
             continue;
         }
-//        if(sources[i]->freqSkew > PTP_MAX_SKEW) {
-//            sources[i]->state = RPY_SD_ST_JITTERY;
-//            continue;
-//        }
+        if(sources[i]->freqSkew > PTP_MAX_SKEW) {
+            sources[i]->state = RPY_SD_ST_JITTERY;
+            continue;
+        }
         sources[i]->state = RPY_SD_ST_SELECTABLE;
         if(sourcePrimary == NULL) {
             sourcePrimary = sources[i];
