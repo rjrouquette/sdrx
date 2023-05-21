@@ -29,6 +29,7 @@ struct PtpSource {
     int span;
 
     uint32_t mac[2];
+    int64_t delayOffset;
     uint64_t delayTxStamp;
     uint64_t syncRxStamps[3];
     uint64_t lastUpdate;

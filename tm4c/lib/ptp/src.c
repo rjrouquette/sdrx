@@ -158,6 +158,7 @@ static void delayTx(void *ref, uint8_t *txFrame, int flen) {
     uint64_t stamps[3];
     NET_getTxTime(txFrame, stamps);
     this->delayTxStamp = stamps[2];
+    this->delayOffset = this->pollSample[this->samplePtr].offset;
 }
 
 static void sendDelayRequest(PtpSource *this) {
@@ -230,7 +231,7 @@ static void doDelay(PtpSource *this, PTP2_DELAY_RESP *resp) {
     if(this->sampleCount < 1) return;
 
     // compute delay using most recent sync
-    int64_t delay = this->pollSample[this->samplePtr].offset - this->syncDelay;
+    int64_t delay = this->delayOffset - this->syncDelay;
     delay += (int64_t) (this->delayTxStamp - fromPtpTimestamp(&(resp->receiveTimestamp)));
     delay = (-delay) / 2;
 
