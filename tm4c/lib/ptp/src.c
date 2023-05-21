@@ -12,6 +12,8 @@
 #include "../format.h"
 #include "../net.h"
 #include "../run.h"
+#include "../clk/tai.h"
+
 
 static void getMeanVar(int cnt, const float *v, float *mean, float *var);
 
@@ -151,6 +153,45 @@ static void getMeanVar(const int cnt, const float *v, float *mean, float *var) {
     *var = _var;
 }
 
+static void delayTx(void *ref, uint8_t *txFrame, int flen) {
+    PtpSource *this = (PtpSource *) ref;
+    NET_getTxTime(txFrame, this->delayTxStamps);
+}
+
+static void sendDelayRequest(PtpSource *this) {
+    int txDesc = NET_getTxDesc();
+    if(txDesc < 0) return;
+    // allocate and clear frame buffer
+    const int flen = PTP2_MIN_SIZE + sizeof(PTP2_TIMESTAMP);
+    uint8_t *frame = NET_getTxBuff(txDesc);
+    memset(frame, 0, flen);
+
+    // map headers
+    HEADER_ETH *headerEth = (HEADER_ETH *) frame;
+    HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
+    PTP2_TIMESTAMP *origin = (PTP2_TIMESTAMP *) (headerPTP + 1);
+
+    // IEEE 802.1AS
+    headerEth->ethType = ETHTYPE_PTP;
+    copyMAC(headerEth->macDst, gPtpMac);
+
+    headerPTP->versionPTP = PTP2_VERSION;
+    headerPTP->messageType = PTP2_MT_DELAY_REQ;
+    headerPTP->messageLength = __builtin_bswap16(sizeof(HEADER_PTP) + sizeof(PTP2_TIMESTAMP));
+    memcpy(headerPTP->sourceIdentity.identity, ptpClockId, sizeof(ptpClockId));
+    headerPTP->sourceIdentity.portNumber = 0;
+    headerPTP->domainNumber = PTP2_DOMAIN;
+    headerPTP->logMessageInterval = 0;
+    headerPTP->sequenceId = __builtin_bswap16(this->seqId++);
+
+    // set preliminary timestamp
+    toPtpTimestamp(CLK_TAI(), origin);
+
+    // transmit request
+    NET_setTxCallback(txDesc, delayTx, this);
+    NET_transmit(txDesc, flen);
+}
+
 static void startExpire(PtpSource *this) {
     // schedule expiration (1.25x poll interval)
     uint64_t expire = 1ull << (32 + this->poll);
@@ -183,6 +224,20 @@ static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
     sample->delay = (float) this->syncDelay;
 }
 
+static void doDelay(PtpSource *this, PTP2_DELAY_RESP *resp) {
+    if(this->sampleCount < 1) return;
+
+    // compute delay
+    int64_t delay = this->pollSample[this->samplePtr].offset - this->syncDelay;
+    delay += (int64_t) (this->delayTxStamps[2] - fromPtpTimestamp(&(resp->receiveTimestamp)));
+    delay /= 2;
+
+    // update delay
+    if(delay >= 0) {
+        this->syncDelay = -delay;
+    }
+}
+
 void PtpSource_init(PtpSource *this, uint8_t *frame, int flen) {
     HEADER_ETH *headerEth = (HEADER_ETH *) frame;
     HEADER_PTP *headerPTP = (HEADER_PTP *) (headerEth + 1);
@@ -194,6 +249,8 @@ void PtpSource_init(PtpSource *this, uint8_t *frame, int flen) {
 }
 
 void PtpSource_run(PtpSource *this) {
+    // send delay request
+    sendDelayRequest(this);
     // update filter
     updateFilter(this);
 }
@@ -214,6 +271,11 @@ void PtpSource_process(PtpSource *this, uint8_t *frame, int flen) {
             runCancel((SchedulerCallback) syncExpire, this);
             startExpire(this);
             doSync(this, (PTP2_TIMESTAMP *) (headerPTP + 1));
+        }
+    }
+    else if(headerPTP->messageType == PTP2_MT_DELAY_RESP) {
+        if(this->seqId == headerPTP->sequenceId) {
+            doDelay(this, (PTP2_DELAY_RESP *) (headerPTP + 1));
         }
     }
 }

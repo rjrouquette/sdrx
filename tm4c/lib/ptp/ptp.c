@@ -24,7 +24,7 @@
 #define PTP_MAX_SRCS (4)
 #define PTP_MAX_SKEW (5e-6f)
 
-static uint8_t clockId[8];
+uint8_t ptpClockId[8];
 
 static volatile uint64_t lastUpdate;
 static volatile uint32_t refId;
@@ -48,7 +48,7 @@ void PTP_init() {
     PLL_init();
 
     // set clock ID to MAC address
-    getMAC(clockId + 2);
+    getMAC(ptpClockId + 2);
     // listen for chronyc status requests
     UDP_register(DEFAULT_CANDM_PORT, chronycRequest);
     // update source selection every second

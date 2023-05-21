@@ -124,6 +124,9 @@ extern const float lutClkAccuracy[17];
 // IEEE 802.1AS broadcast MAC address (01:80:C2:00:00:0E)
 extern const uint8_t gPtpMac[6];
 
+// ID for the local clock
+extern uint8_t ptpClockId[8];
+
 /**
  * Convert fixed-point 64-bit timestamp to PTP timestamp
  * @param ts fixed-point timestamp
