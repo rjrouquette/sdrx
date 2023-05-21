@@ -152,11 +152,11 @@ static void runMeasure(void *ref) {
     float y[cntSamples];
 
     // compute means
-    uint64_t xOff = samples[(ptrSamples - 1) & (PTP_MAX_SAMPLES - 1)].local;
+    const uint64_t xOff = CLK_TAI();
     float meanX = 0, meanY = 0;
     for(int i = 0; i < cntSamples; i++) {
         int j = (ptrSamples - i - 1) & (PTP_MAX_SAMPLES - 1);
-        x[i] = toFloat((int64_t) (samples[j].local - xOff));
+        x[i] = toFloatU(xOff - samples[j].local);
         y[i] = toFloat((int64_t) (samples[j].remote - samples[j].local));
         meanX += x[i];
         meanY += y[i];
@@ -172,7 +172,7 @@ static void runMeasure(void *ref) {
         xx += a * a;
         xy += a * b;
     }
-    float beta = (xx == 0) ? 0 : (xy / xx);
+    float beta = (xx <= 0) ? 0 : (xy / xx);
 
     // compute residual
     float res = 0;
@@ -224,7 +224,7 @@ static void runMeasure(void *ref) {
         xx += a * a;
         xy += a * b;
     }
-    beta = (xx == 0) ? 0 : (xy / xx);
+    beta = (xx <= 0) ? 0 : (xy / xx);
 
     // recompute residual
     res = 0;
@@ -238,8 +238,8 @@ static void runMeasure(void *ref) {
     res /=  (float) (cnt - 1);
 
     // compute final result
-    offsetDrift = beta;
-    offsetMean = meanY + (beta * (toFloat((int64_t) (CLK_TAI() - xOff)) - meanX));
+    offsetDrift = -beta;
+    offsetMean = meanY;// - (beta * meanX);
     offsetStdDev = sqrtf(res);
 
     // update offset compensation
