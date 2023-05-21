@@ -20,6 +20,7 @@
 #include "lib/net/udp.h"
 #include "lib/net/util.h"
 #include "lib/ptp/pll.h"
+#include "lib/ptp/ptp.h"
 #include "lib/run.h"
 
 #include "gitversion.h"
@@ -84,6 +85,8 @@ void STATUS_process(uint8_t *frame, int flen) {
         size = statusETH(body);
     } else if(strncmp(body, "pll", 3) == 0 && hasTerminus(body, 3)) {
         size = PLL_status(body);
+    } else if(strncmp(body, "ptp", 3) == 0 && hasTerminus(body, 3)) {
+        size = PTP_status(body);
     } else if(strncmp(body, "system", 6) == 0 && hasTerminus(body, 6)) {
         size = statusSystem(body);
     } else if(strncmp(body, "run", 3) == 0 && hasTerminus(body, 3)) {

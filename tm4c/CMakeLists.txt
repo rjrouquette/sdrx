@@ -52,7 +52,6 @@ add_executable(
         lib/ptp/common.c
         lib/ptp/pll.c
         lib/ptp/ptp.c
-        lib/ptp/src.c
         lib/ptp/tcmp.c
         lib/rand.c
         lib/run.c
