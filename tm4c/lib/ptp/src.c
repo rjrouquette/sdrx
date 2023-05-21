@@ -15,6 +15,10 @@
 
 static void getMeanVar(int cnt, const float *v, float *mean, float *var);
 
+static void startExpire(PtpSource *this);
+static void syncExpire(PtpSource *this);
+
+
 void incrFilter(PtpSource *this) {
     this->samplePtr = (this->samplePtr + 1) & (PTP_MAX_HISTORY - 1);
     if(++this->sampleCount > PTP_MAX_HISTORY)
@@ -147,12 +151,16 @@ static void getMeanVar(const int cnt, const float *v, float *mean, float *var) {
     *var = _var;
 }
 
+static void startExpire(PtpSource *this) {
+    // schedule expiration (1.25x poll interval)
+    uint64_t expire = 1ull << (32 + this->poll);
+    expire |= 1ull << (30 + this->poll);
+    runOnce(expire, (SchedulerCallback) syncExpire, this);
+}
+
 static void syncExpire(PtpSource *this) {
     this->reach <<= 1;
-    // schedule next expiration
-    uint64_t expire = 1ull << (32 + this->poll);
-    expire |= 1ull << (31 + this->poll);
-    runOnce(expire, (SchedulerCallback) syncExpire, this);
+    startExpire(this);
 }
 
 static void doSync(PtpSource *this, PTP2_TIMESTAMP *ts) {
@@ -200,15 +208,12 @@ void PtpSource_process(PtpSource *this, uint8_t *frame, int flen) {
         this->poll = (int16_t) (int8_t) headerPTP->logMessageInterval;
         this->syncSeq = headerPTP->sequenceId;
         NET_getRxTime(frame, this->syncRxStamps);
-        // schedule expiration
-        uint64_t expire = 1ull << (32 + this->poll);
-        expire |= 1ull << (31 + this->poll);
-        runOnce(expire, (SchedulerCallback) syncExpire, this);
     }
     else if(headerPTP->messageType == PTP2_MT_FOLLOW_UP) {
         // process sync followup message
         if(this->syncSeq == headerPTP->sequenceId) {
             runCancel((SchedulerCallback) syncExpire, this);
+            startExpire(this);
             doSync(this, (PTP2_TIMESTAMP *) (headerPTP + 1));
         }
     }
