@@ -143,7 +143,7 @@ static void runDelay(void *ref) {
 }
 
 static void runMeasure(void *ref) {
-    if(cntSamples < 3) {
+    if(cntSamples < 5) {
         cntSamples = 0;
         return;
     }
@@ -209,7 +209,7 @@ static void runMeasure(void *ref) {
         }
     }
     cntSamples = 0;
-    if(cnt < 2) return;
+    if(cnt < 4) return;
 
     // recompute means
     meanX = 0, meanY = 0;
