@@ -367,10 +367,10 @@ void ptpRestartOffset() {
 
 static void sourceDelay(PtpSource *src) {
     // wait for all timestamps
-    if(src->rxLocal  != 0) return;
-    if(src->rxRemote != 0) return;
-    if(src->txLocal  != 0) return;
-    if(src->txRemote != 0) return;
+    if(src->rxLocal  == 0) return;
+    if(src->rxRemote == 0) return;
+    if(src->txLocal  == 0) return;
+    if(src->txRemote == 0) return;
 
     // compute delay using most recent sync
     uint64_t delay = src->rxLocal + src->rxRemote;
