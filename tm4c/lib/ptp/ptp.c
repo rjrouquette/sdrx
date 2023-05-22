@@ -151,12 +151,22 @@ static void runMeasure(void *ref) {
     float x[cntSamples];
     float y[cntSamples];
 
+
+    uint32_t rem = 0;
+    // compute compensated time
+    uint64_t nowComp = CLK_MONO();
+    nowComp += corrFrac(clkCompRate, nowComp - clkCompRef, &rem);
+    nowComp += clkCompOffset;
+    // compute TAI time
+    uint64_t nowTai = nowComp;
+    nowTai += corrFrac(clkTaiRate, nowTai - clkTaiRef, &rem);
+    nowTai += clkTaiOffset;
+
     // compute means
-    const uint64_t xOff = CLK_TAI();
     float meanX = 0, meanY = 0;
     for(int i = 0; i < cntSamples; i++) {
         int j = (ptrSamples - i - 1) & (PTP_MAX_SAMPLES - 1);
-        x[i] = toFloatU(xOff - samples[j].local);
+        x[i] = toFloatU(nowTai - samples[j].local);
         y[i] = toFloat((int64_t) (samples[j].remote - samples[j].local));
         meanX += x[i];
         meanY += y[i];
@@ -234,7 +244,7 @@ static void runMeasure(void *ref) {
 
     // compute final result
     offsetDrift = -beta;
-    offsetMean = meanY;// - (beta * meanX);
+    offsetMean = meanY - (beta * meanX);
     offsetStdDev = sqrtf(res);
 
     // update offset compensation
