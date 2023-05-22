@@ -415,7 +415,7 @@ static void sourceRequestDelay(PtpSource *src) {
     // set timestamp
     toPtpTimestamp(CLK_TAI(), origin);
 
-    // clear status flags
+    // clear delay timestamps
     src->rxRemote = 0;
     src->txLocal = 0;
 
@@ -453,7 +453,7 @@ static void sourceRx(PtpSource *src, uint8_t *frame, int flen) {
 
 static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts) {
     // wait for valid RX timestamp
-    if(!src->rxLocal) return;
+//    if(src->rxLocal == 0) return;
 
     // update remote transmit timestamp
     src->txRemote = fromPtpTimestamp(ts);
