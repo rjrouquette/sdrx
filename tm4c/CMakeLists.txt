@@ -53,6 +53,7 @@ add_executable(
         lib/ptp/pll.c
         lib/ptp/ptp.c
         lib/ptp/tcmp.c
+        lib/ptp/util.c
         lib/rand.c
         lib/run.c
         lib/snmp/sensors.c

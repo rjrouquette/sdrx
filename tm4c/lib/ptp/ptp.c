@@ -19,6 +19,7 @@
 #include "common.h"
 #include "pll.h"
 #include "ptp.h"
+#include "util.h"
 
 #define PTP_HIST_DRIFT (16)
 #define PTP_HIST_OFFSET (32)
@@ -278,7 +279,54 @@ static int updateDrift() {
     uint64_t b = offsetTai - driftTai;
     float c = offsetMean - driftOff;
     float newDrift = (c + (0x1p-32f * ((float) (int32_t) (b - a)))) / toFloatU(a);
+    // update state for next run
+    driftComp = offsetComp;
+    driftTai = offsetTai;
+    driftOff = offsetMean;
 
+    // add sample to ring buffer
+    ringDrift[ptrDrift] = newDrift;
+    // advance sample pointer
+    ptrDrift = (ptrDrift + 1) & (PTP_HIST_DRIFT - 1);
+    if(cntDrift < PTP_HIST_DRIFT)
+        ++cntDrift;
+
+    // wait for sufficient samples
+    if(cntDrift < 8) return 1;
+
+    float samples[cntDrift];
+    for(int i = 0; i < cntDrift; i++) {
+        int j = (ptrDrift - i - 1) & (PTP_HIST_DRIFT - 1);
+        samples[i] = ringDrift[j];
+    }
+
+    int cnt;
+    float mean, var;
+    // compute mean and variance
+    getMeanVar(cntDrift, samples, &mean, &var);
+    // remove extrema
+    float limit = var * 4;
+    if(limit > 0) {
+        cnt = 0;
+        for (int i = 0; i < cntDrift; i++) {
+            float diff = samples[i] - mean;
+            if ((diff * diff) <= limit) {
+                samples[cnt++] = samples[i];
+            }
+        }
+        // recompute mean and variance
+        if (cnt > 0)
+            getMeanVar(cnt, samples, &mean, &var);
+        else
+            cnt = cntDrift;
+    } else {
+        cnt = cntDrift;
+    }
+
+    // update drift measurement
+    driftCount = cnt;
+    driftMean = mean;
+    driftStdDev = sqrtf(var);
     return 0;
 }
 
@@ -404,7 +452,7 @@ static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts) {
     // update remote transmit timestamp
     src->txRemote = fromPtpTimestamp(ts);
 
-    // store sample
+    // add sample to ring buffer
     ringOffset[ptrOffset].local = src->rxLocal;
     ringOffset[ptrOffset].remote = src->txRemote + src->delay;
     // advance sample pointer
@@ -455,6 +503,23 @@ unsigned PTP_status(char *buffer) {
     end = append(end, "  - dev:   ");
     end = append(end, tmp);
     end = append(end, " us\n");
+
+    end = append(end, "\ndrift measurement:\n");
+
+    tmp[toDec(driftCount, 8, ' ', tmp)] = 0;
+    end = append(end, "  - used:  ");
+    end = append(end, tmp);
+    end = append(end, "\n");
+
+    tmp[fmtFloat(driftMean * 1e6f, 12, 3, tmp)] = 0;
+    end = append(end, "  - mean:  ");
+    end = append(end, tmp);
+    end = append(end, " ppm\n");
+
+    tmp[fmtFloat(driftStdDev * 1e6f, 12, 3, tmp)] = 0;
+    end = append(end, "  - dev:   ");
+    end = append(end, tmp);
+    end = append(end, " ppm\n");
 
     return end - buffer;
 }
