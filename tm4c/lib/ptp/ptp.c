@@ -391,8 +391,8 @@ unsigned PTP_status(char *buffer) {
 
     end = append(end, "\noffset measurement:\n");
 
-    tmp[toDec(offsetCount, 12, ' ', tmp)] = 0;
-    end = append(end, "  - count: ");
+    tmp[toDec(offsetCount, 8, ' ', tmp)] = 0;
+    end = append(end, "  - used:  ");
     end = append(end, tmp);
     end = append(end, "\n");
 
