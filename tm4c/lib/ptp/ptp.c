@@ -129,7 +129,7 @@ void PTP_process(uint8_t *frame, int flen) {
     // map message
     PTP2_ANNOUNCE *announce = (PTP2_ANNOUNCE *) (headerPTP + 1);
     uint32_t clkQual = announce->grandMasterClockQuality;
-    // remove source if it's quality is too poor
+    // remove source if its quality is too poor
     if(clkQual < 0x20 || clkQual > 0x31 || lutClkAccuracy[clkQual - 0x20] > PTP_MIN_ACCURACY) {
         for(int i = 0; i < PTP_MAX_SRCS; i++) {
             if(sources[i].mac == mac)
@@ -453,7 +453,7 @@ static void sourceRx(PtpSource *src, uint8_t *frame, int flen) {
 
 static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts) {
     // wait for valid RX timestamp
-//    if(src->rxLocal == 0) return;
+    if(src->rxLocal == 0) return;
 
     // update remote transmit timestamp
     src->txRemote = fromPtpTimestamp(ts);
