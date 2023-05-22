@@ -20,7 +20,8 @@
 #include "pll.h"
 #include "ptp.h"
 
-#define PTP_MAX_SAMPLES (32)
+#define PTP_HIST_DRIFT (16)
+#define PTP_HIST_OFFSET (32)
 #define PTP_MAX_SRCS (8)
 #define PTP_MIN_ACCURACY (250e-9f)
 
@@ -45,12 +46,24 @@ typedef struct PtpSource {
 
 uint8_t ptpClockId[8];
 
-static PtpSample samples[PTP_MAX_SAMPLES];
+static float ringDrift[PTP_HIST_DRIFT];
+static PtpSample ringOffset[PTP_HIST_OFFSET];
 static PtpSource sources[PTP_MAX_SRCS];
 
-static int ptrSamples;
-static int cntSamples;
+static int ptrDrift;
+static int cntDrift;
+static int ptrOffset;
+static int cntOffset;
 
+static uint64_t driftComp;
+static uint64_t driftTai;
+static float driftOff;
+static int driftCount;
+static float driftMean;
+static float driftStdDev;
+
+static uint64_t offsetComp;
+static uint64_t offsetTai;
 static int offsetCount;
 static float offsetDrift;
 static float offsetMean;
@@ -143,15 +156,14 @@ static void runDelay(void *ref) {
     }
 }
 
-static void runMeasure(void *ref) {
-    if(cntSamples < 5) {
-        cntSamples = 0;
-        return;
+static int updateOffset() {
+    if(cntOffset < 5) {
+        cntOffset = 0;
+        return 1;
     }
 
-    float x[cntSamples];
-    float y[cntSamples];
-
+    float x[cntOffset];
+    float y[cntOffset];
 
     uint32_t rem = 0;
     // compute compensated time
@@ -165,18 +177,18 @@ static void runMeasure(void *ref) {
 
     // compute means
     float meanX = 0, meanY = 0;
-    for(int i = 0; i < cntSamples; i++) {
-        int j = (ptrSamples - i - 1) & (PTP_MAX_SAMPLES - 1);
-        x[i] = toFloatU(nowTai - samples[j].local);
-        y[i] = toFloat((int64_t) (samples[j].remote - samples[j].local));
+    for(int i = 0; i < cntOffset; i++) {
+        int j = (ptrOffset - i - 1) & (PTP_HIST_OFFSET - 1);
+        x[i] = toFloatU(nowTai - ringOffset[j].local);
+        y[i] = toFloat((int64_t) (ringOffset[j].remote - ringOffset[j].local));
         meanX += x[i];
         meanY += y[i];
     }
-    meanX /= (float) cntSamples;
-    meanY /= (float) cntSamples;
+    meanX /= (float) cntOffset;
+    meanY /= (float) cntOffset;
 
     float xx = 0, xy = 0;
-    for(int i = 0; i < cntSamples; i++) {
+    for(int i = 0; i < cntOffset; i++) {
         float a = x[i] - meanX;
         float b = y[i] - meanY;
 
@@ -187,18 +199,18 @@ static void runMeasure(void *ref) {
 
     // compute residual
     float res = 0;
-    for(int i = 0; i < cntSamples; i++) {
+    for(int i = 0; i < cntOffset; i++) {
         float a = x[i] - meanX;
         float b = y[i] - meanY;
 
         float z = b - beta * a;
         res += z * z;
     }
-    res /=  (float) (cntSamples - 1);
+    res /=  (float) (cntOffset - 1);
 
     // remove outliers
     int cnt = 0;
-    for(int i = 0; i < cntSamples; i++) {
+    for(int i = 0; i < cntOffset; i++) {
         float a = x[i] - meanX;
         float b = y[i] - meanY;
 
@@ -209,8 +221,8 @@ static void runMeasure(void *ref) {
             ++cnt;
         }
     }
-    cntSamples = 0;
-    if(cnt < 4) return;
+    cntOffset = 0;
+    if(cnt < 4) return 1;
 
     // recompute means
     meanX = 0, meanY = 0;
@@ -244,10 +256,36 @@ static void runMeasure(void *ref) {
     res /=  (float) (cnt - 1);
 
     // compute final result
+    offsetComp = nowComp;
+    offsetTai = nowTai;
     offsetCount = cnt;
     offsetDrift = -beta;
     offsetMean = meanY - (beta * meanX);
     offsetStdDev = sqrtf(res);
+    return 0;
+}
+
+static int updateDrift() {
+    if(driftComp == 0) {
+        driftComp = offsetComp;
+        driftTai = offsetTai;
+        driftOff = offsetMean;
+        return 1;
+    }
+
+    // compute current drift
+    uint64_t a = offsetComp - driftComp;
+    uint64_t b = offsetTai - driftTai;
+    float c = offsetMean - driftOff;
+    float newDrift = (c + (0x1p-32f * ((float) (int32_t) (b - a)))) / toFloatU(a);
+
+    return 0;
+}
+
+static void runMeasure(void *ref) {
+    // update offset measurement
+    if(updateOffset())
+        return;
 
     // discard unstable results
     if(fabsf(offsetDrift) > 1e-3f) {
@@ -257,8 +295,12 @@ static void runMeasure(void *ref) {
 
     // update offset compensation
     PLL_updateOffset(offsetMean);
+
+    // update drift measurement
+    if(updateDrift())
+        return;
     // update frequency compensation
-//    PLL_updateDrift(source->freqDrift);
+    PLL_updateDrift(driftMean);
 }
 
 void ptpApplyOffset(int64_t offset) {
@@ -266,6 +308,9 @@ void ptpApplyOffset(int64_t offset) {
         sources[i].rxLocal += offset;
         sources[i].txLocal += offset;
     }
+    // reset drift filter
+    driftComp = 0;
+    cntDrift = 0;
 }
 
 
@@ -360,12 +405,12 @@ static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts) {
     src->txRemote = fromPtpTimestamp(ts);
 
     // store sample
-    samples[ptrSamples].local = src->rxLocal;
-    samples[ptrSamples].remote = src->txRemote + src->delay;
+    ringOffset[ptrOffset].local = src->rxLocal;
+    ringOffset[ptrOffset].remote = src->txRemote + src->delay;
     // advance sample pointer
-    ptrSamples = (ptrSamples + 1) & (PTP_MAX_SAMPLES - 1);
-    if(cntSamples < PTP_MAX_SAMPLES)
-        ++cntSamples;
+    ptrOffset = (ptrOffset + 1) & (PTP_HIST_OFFSET - 1);
+    if(cntOffset < PTP_HIST_OFFSET)
+        ++cntOffset;
 }
 
 
