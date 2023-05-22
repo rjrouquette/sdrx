@@ -249,6 +249,12 @@ static void runMeasure(void *ref) {
     offsetMean = meanY - (beta * meanX);
     offsetStdDev = sqrtf(res);
 
+    // discard unstable results
+    if(fabsf(offsetDrift) > 1e-3f) {
+        if(fabsf(offsetDrift) / fabsf(offsetStdDev) < 100)
+            return;
+    }
+
     // update offset compensation
     PLL_updateOffset(offsetMean);
     // update frequency compensation
