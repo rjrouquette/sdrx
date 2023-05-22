@@ -39,7 +39,7 @@ void PLL_init() {
 }
 
 // from ptp.c
-void ptpApplyOffset(int64_t offset);
+void ptpRestartOffset();
 
 void PLL_updateOffset(const float offset) {
     // large offset delta
@@ -48,7 +48,7 @@ void PLL_updateOffset(const float offset) {
         scratch.fpart = 0;
         scratch.ipart = lroundf(offset);
         CLK_TAI_adjust((int64_t) scratch.full);
-        ptpApplyOffset((int64_t) scratch.full);
+        ptpRestartOffset();
         offsetMS = 0;
         return;
     }
@@ -58,11 +58,11 @@ void PLL_updateOffset(const float offset) {
         if(offset < 0) {
             uint64_t scratch = (uint32_t) (-0x1p32f * offset);
             CLK_TAI_adjust((int64_t) -scratch);
-            ptpApplyOffset((int64_t) -scratch);
+            ptpRestartOffset();
         } else {
             uint64_t scratch = (uint32_t) (0x1p32f * offset);
             CLK_TAI_adjust((int64_t) scratch);
-            ptpApplyOffset((int64_t) scratch);
+            ptpRestartOffset();
         }
         offsetMS = 0;
     }

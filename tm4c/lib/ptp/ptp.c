@@ -12,8 +12,6 @@
 #include "../led.h"
 #include "../net.h"
 #include "../net/eth.h"
-#include "../net/ip.h"
-#include "../net/udp.h"
 #include "../net/util.h"
 #include "../run.h"
 #include "common.h"
@@ -351,11 +349,16 @@ static void runMeasure(void *ref) {
     PLL_updateDrift(driftMean);
 }
 
-void ptpApplyOffset(int64_t offset) {
+void ptpRestartOffset() {
+    // reset source offset tracking
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
-        sources[i].rxLocal += offset;
-        sources[i].txLocal += offset;
+        sources[i].rxLocal = 0;
+        sources[i].rxRemote = 0;
+        sources[i].txLocal = 0;
+        sources[i].txRemote = 0;
     }
+    // reset offset filter
+    cntOffset = 0;
     // reset drift filter
     driftComp = 0;
     cntDrift = 0;
@@ -363,9 +366,11 @@ void ptpApplyOffset(int64_t offset) {
 
 
 static void sourceDelay(PtpSource *src) {
-    // wait for both timestamps
-    if(!src->rxRemote) return;
-    if(!src->txLocal) return;
+    // wait for all timestamps
+    if(src->rxLocal  != 0) return;
+    if(src->rxRemote != 0) return;
+    if(src->txLocal  != 0) return;
+    if(src->txRemote != 0) return;
 
     // compute delay using most recent sync
     uint64_t delay = src->rxLocal + src->rxRemote;
@@ -382,8 +387,6 @@ static void sourceDelayTx(void *ref, uint8_t *frame, int flen) {
 }
 
 static void sourceRequestDelay(PtpSource *src) {
-    if(!src->rxLocal) return;
-
     int txDesc = NET_getTxDesc();
     if(txDesc < 0) return;
     // allocate and clear frame buffer
@@ -449,6 +452,9 @@ static void sourceRx(PtpSource *src, uint8_t *frame, int flen) {
 }
 
 static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts) {
+    // wait for valid RX timestamp
+    if(!src->rxLocal) return;
+
     // update remote transmit timestamp
     src->txRemote = fromPtpTimestamp(ts);
 
