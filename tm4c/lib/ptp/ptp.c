@@ -78,9 +78,6 @@ static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts);
 static void runDelay(void *ref);
 static void runMeasure(void *ref);
 
-// chronyc request handler
-static void chronycRequest(uint8_t *frame, int flen);
-
 void PTP_init() {
     PLL_init();
 
