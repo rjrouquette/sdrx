@@ -54,7 +54,7 @@ void PLL_updateOffset(const float offset) {
     }
 
     // large offset delta
-    if(fabsf(offset) >= 1e-3f) {
+    if(fabsf(offset) >= 10e-3f) {
         if(offset < 0) {
             uint64_t scratch = (uint32_t) (-0x1p32f * offset);
             CLK_TAI_adjust((int64_t) -scratch);
