@@ -45,7 +45,7 @@ void PLL_updateOffset(const float offset) {
     // large offset delta
     if(fabsf(offset) >= 0.01f) {
         union fixed_32_32 scratch;
-        scratch.ipart = lroundf(offset);
+        scratch.ipart = (int32_t) floorf(offset);
         scratch.fpart = (uint32_t) (0x1p32f * (offset - (float) (int32_t) scratch.ipart));
         CLK_TAI_adjust((int64_t) scratch.full);
         ptpRestartOffset();
