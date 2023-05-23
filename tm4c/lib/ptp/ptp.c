@@ -133,7 +133,7 @@ void PTP_process(uint8_t *frame, int flen) {
     if(clkQual < 0x20 || clkQual > 0x31 || lutClkAccuracy[clkQual - 0x20] > PTP_MIN_ACCURACY) {
         for(int i = 0; i < PTP_MAX_SRCS; i++) {
             if(sources[i].mac == mac)
-                sources[i].mac = 0;
+                memset(sources + i, 0, sizeof(PtpSource));
         }
         return;
     }
@@ -141,7 +141,6 @@ void PTP_process(uint8_t *frame, int flen) {
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(sources[i].mac == 0) {
             sources[i].mac = mac;
-            sources[i].rxLocal = 0;
             return;
         }
     }
