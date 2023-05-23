@@ -350,13 +350,8 @@ static void runMeasure(void *ref) {
 }
 
 void ptpRestartOffset() {
-    // reset source offset tracking
-    for(int i = 0; i < PTP_MAX_SRCS; i++) {
-        sources[i].rxLocal = 0;
-        sources[i].rxRemote = 0;
-        sources[i].txLocal = 0;
-        sources[i].txRemote = 0;
-    }
+    // reset all sources
+    memset(sources, 0, sizeof(sources));
     // reset offset filter
     cntOffset = 0;
     // reset drift filter
