@@ -349,8 +349,14 @@ static void runMeasure(void *ref) {
 }
 
 void ptpRestartOffset() {
-    // reset all sources
-    memset(sources, 0, sizeof(sources));
+    // reset timestamps for all sources
+    for(int i = 0; i < PTP_MAX_SRCS; i++) {
+        PtpSource *src = sources + i;
+        src->rxLocal  = 0;
+        src->rxRemote = 0;
+        src->txLocal  = 0;
+        src->txRemote = 0;
+    }
     // reset offset filter
     cntOffset = 0;
     // reset drift filter
