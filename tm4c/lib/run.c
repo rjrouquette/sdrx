@@ -9,6 +9,7 @@
 #include "format.h"
 #include "led.h"
 #include "run.h"
+#include "../hw/interrupts.h"
 
 
 enum TaskType {
@@ -53,6 +54,9 @@ static volatile QueueNode queueSchedule;
 
 static OnceExtended *extFree;
 static OnceExtended extPool[SLOT_CNT];
+
+static QueueNode *wakeList[SLOT_CNT];
+static int wakeCount;
 
 static QueueNode * allocNode();
 
@@ -135,6 +139,25 @@ void runScheduler() {
         now = CLK_MONO_RAW;
         node->task.ticks += now - prior;
         ++(node->task.hits);
+
+        // check for tasks to wake
+        if(wakeCount) {
+            __disable_irq();
+            for(int i = 0; i < wakeCount; i++) {
+                QueueNode *wake = wakeList[i];
+                // schedule task to run immediately
+                if (wake->task.run == doOnceExtended) {
+                    OnceExtended *ext = (OnceExtended *) wake->task.ref;
+                    ext->countDown = 0;
+                }
+                wake->task.next = now;
+                reschedule(wake);
+            }
+            wakeCount = 0;
+            __enable_irq();
+            node = (QueueNode *) &queueSchedule;
+            continue;
+        }
 
         // check for scheduled tasks
         node = queueSchedule.next;
@@ -291,14 +314,15 @@ void * runOnce(uint64_t delay, SchedulerCallback callback, void *ref) {
 }
 
 void runWake(void *taskHandle) {
-    QueueNode *node = (QueueNode *) taskHandle;
-    // schedule task to run immediately
-    if(node->task.run == doOnceExtended) {
-        OnceExtended *ext = (OnceExtended *) node->task.ref;
-        ext->countDown = 0;
+    __disable_irq();
+    for(int i = 0; i < wakeCount; i++) {
+        if(wakeList[i] ==  taskHandle) {
+            __enable_irq();
+            return;
+        }
     }
-    node->task.next = CLK_MONO_RAW;
-    reschedule(node);
+    wakeList[wakeCount++] = taskHandle;
+    __enable_irq();
 }
 
 void runCancel(SchedulerCallback callback, void *ref) {
