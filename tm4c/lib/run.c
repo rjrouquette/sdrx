@@ -60,6 +60,7 @@ static volatile int wakeCount;
 
 static QueueNode * allocNode();
 
+static void doWake(void *ref);
 static void doOnceExtended(void *ref);
 
 void initScheduler() {
@@ -74,6 +75,8 @@ void initScheduler() {
     // initialize queue pointers
     queueSchedule.next = (QueueNode *) &queueSchedule;
     queueSchedule.prev = (QueueNode *) &queueSchedule;
+
+    runSleep(1u << 12, doWake, NULL);
 }
 
 static QueueNode * allocNode() {
@@ -127,7 +130,9 @@ static void reschedule(QueueNode *node) {
 }
 
 __attribute__((optimize(3)))
-static void doWake() {
+static void doWake(void *ref) {
+    if(wakeCount == 0) return;
+
     __disable_irq();
     uint32_t now = CLK_MONO_RAW;
     for(int i = 0; i < wakeCount; i++) {
@@ -157,13 +162,6 @@ void runScheduler() {
         now = CLK_MONO_RAW;
         node->task.ticks += now - prior;
         ++(node->task.hits);
-
-        // check for tasks to wake
-        if(wakeCount) {
-            doWake();
-            node = (QueueNode *) &queueSchedule;
-            continue;
-        }
 
         // check for scheduled tasks
         node = queueSchedule.next;
