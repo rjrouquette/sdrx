@@ -51,6 +51,9 @@ static struct { CallbackNetTX call; void *ref; } txCallback[TX_RING_SIZE];
 static EMAC_TX_DESC txDesc[TX_RING_SIZE];
 static uint8_t txBuffer[TX_RING_SIZE][TX_BUFF_SIZE];
 
+static void * volatile taskRx;
+static void * volatile taskTx;
+
 static const uint8_t arpMultiMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
 void PTP_process(uint8_t *frame, int flen);
@@ -179,6 +182,7 @@ static void initMAC() {
     EMAC0.TXDLADDR = (uint32_t) txDesc;
     EMAC0.DMAOPMODE.ST = 1;
     EMAC0.DMAOPMODE.SR = 1;
+    EMAC0.DMAIM.RIE = 1;
 
     // set frame filter mode
     EMAC0.FRAMEFLTR.RA = 1;
@@ -218,6 +222,16 @@ void ISR_EthernetMAC(void) {
         if(temp & 4) phyStatus |= 1;
         return;
     }
+
+    if(EMAC0.DMARIS.RI) {
+        EMAC0.DMARIS.RI = 1;
+        runWake(taskRx);
+    }
+
+//    if(EMAC0.DMARIS.TI) {
+//        EMAC0.DMARIS.TI = 1;
+//        runWake(taskTx);
+//    }
 }
 
 __attribute__((optimize(3)))
@@ -291,7 +305,7 @@ void NET_init() {
     DNS_init();
 
     // schedule RX processing
-    runSleep(RX_POLL_INTV, runRx, NULL);
+    taskRx = runSleep(1ull << 32, runRx, NULL);
 }
 
 void NET_getMacAddress(char *strAddr) {
