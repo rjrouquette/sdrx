@@ -103,13 +103,14 @@ static void destroyNode(QueueNode *node) {
 __attribute__((optimize(3)))
 static void reschedule(QueueNode *node) {
     __disable_irq();
+    // set next run time
+    if(node->task.type == TaskSleep)
+        node->task.next = CLK_MONO_RAW;
+    node->task.next += node->task.intv;
+
     // remove from queue
     node->prev->next = node->next;
     node->next->prev = node->prev;
-
-    // set next run time
-    uint32_t timer = (node->task.type == TaskSleep) ? CLK_MONO_RAW : node->task.next;
-    node->task.next = timer + node->task.intv;
 
     // locate optimal insertion point
     QueueNode *ins = queueSchedule.next;
