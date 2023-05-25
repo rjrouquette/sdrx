@@ -231,7 +231,7 @@ static void doOnceExtended(void *ref) {
         this->node->task.type = TaskOnce;
     }
     else if(--this->countDown == 0) {
-        // sent final interval once countdown is complete
+        // set final interval once countdown is complete
         this->node->task.intv = this->finalIntv;
     }
 }
@@ -317,7 +317,7 @@ void runCancel(SchedulerCallback callback, void *ref) {
         else if(node->task.run == doOnceExtended) {
             // additional check for extended tasks
             OnceExtended *ext = (OnceExtended *) node->task.ref;
-            if(ext->run == callback)
+            if((ext->run == callback) && ((ref == NULL) || (ext->ref == ref)))
                 runRemove(node);
         }
     }
