@@ -55,7 +55,6 @@ static OnceExtended *extFree;
 static OnceExtended extPool[SLOT_CNT];
 
 static QueueNode * allocNode();
-static void destroyNode(QueueNode *node);
 
 static void doOnceExtended(void *ref);
 
@@ -87,7 +86,8 @@ static inline void queueRemove(QueueNode *node) {
     node->next->prev = node->prev;
 }
 
-static void destroyNode(QueueNode *node) {
+__attribute__((always_inline))
+static inline void destroyNode(QueueNode *node) {
     if(node->task.run == doOnceExtended) {
         OnceExtended *ext = (OnceExtended *) node->task.ref;
         ext->ref = extFree;
@@ -101,7 +101,8 @@ static void destroyNode(QueueNode *node) {
     queueFree = node;
 }
 
-static void insSchedule(QueueNode *node) {
+__attribute__((always_inline))
+static inline void insSchedule(QueueNode *node) {
     // ordered insertion into schedule queue
     QueueNode *ins = queueSchedule.next;
     while(ins->task.type) {
