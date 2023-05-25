@@ -183,6 +183,7 @@ static void initMAC() {
     EMAC0.DMAOPMODE.ST = 1;
     EMAC0.DMAOPMODE.SR = 1;
     EMAC0.DMAIM.RIE = 1;
+    EMAC0.DMAIM.NIE = 1;
 
     // set frame filter mode
     EMAC0.FRAMEFLTR.RA = 1;
