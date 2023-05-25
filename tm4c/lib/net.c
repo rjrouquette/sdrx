@@ -43,16 +43,15 @@ static volatile int ptrTX = 0;
 static volatile int endTX = 0;
 static volatile int phyStatus = 0;
 
+static void * volatile taskRx;
 static EMAC_RX_DESC rxDesc[RX_RING_SIZE];
 static uint8_t rxBuffer[RX_RING_SIZE][RX_BUFF_SIZE];
 
-static volatile bool txRunning;
+static void * volatile taskTx;
 static struct { CallbackNetTX call; void *ref; } txCallback[TX_RING_SIZE];
 static EMAC_TX_DESC txDesc[TX_RING_SIZE];
 static uint8_t txBuffer[TX_RING_SIZE][TX_BUFF_SIZE];
 
-static void * volatile taskRx;
-static void * volatile taskTx;
 
 static const uint8_t arpMultiMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
@@ -183,6 +182,7 @@ static void initMAC() {
     EMAC0.DMAOPMODE.ST = 1;
     EMAC0.DMAOPMODE.SR = 1;
     EMAC0.DMAIM.RIE = 1;
+    EMAC0.DMAIM.TIE = 1;
     EMAC0.DMAIM.NIE = 1;
 
     // set frame filter mode
@@ -229,10 +229,10 @@ void ISR_EthernetMAC(void) {
         runWake(taskRx);
     }
 
-//    if(EMAC0.DMARIS.TI) {
-//        EMAC0.DMARIS.TI = 1;
-//        runWake(taskTx);
-//    }
+    if(EMAC0.DMARIS.TI) {
+        EMAC0.DMARIS.TI = 1;
+        runWake(taskTx);
+    }
 }
 
 __attribute__((optimize(3)))
@@ -284,12 +284,6 @@ static void runTx(void *ref) {
         // advance pointer
         ADV_RING_TX(end);
     }
-
-    // shutdown thread if there is no more work
-    if(end == ptr) {
-        runCancel(runTx, NULL);
-        txRunning = false;
-    }
     endTX = end;
 }
 
@@ -305,8 +299,9 @@ void NET_init() {
     DHCP_init();
     DNS_init();
 
-    // schedule RX processing
+    // schedule RX/TX processing
     taskRx = runSleep(1ull << 32, runRx, NULL);
+    taskTx = runSleep(1ull << 32, runTx, NULL);
 }
 
 void NET_getMacAddress(char *strAddr) {
@@ -346,14 +341,10 @@ void NET_transmit(int desc, int len) {
     // set transmission size
     txDesc[desc].TDES1.TBS1 = len;
     // release descriptor
+    txDesc[desc].TDES0.IC = 1;
     txDesc[desc].TDES0.OWN = 1;
     // wake TX DMA
     EMAC0.TXPOLLD = 1;
-    // start thread
-    if(!txRunning) {
-        runSleep(TX_POLL_INTV, runTx, NULL);
-        txRunning = true;
-    }
 }
 
 /**
