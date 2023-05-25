@@ -104,8 +104,8 @@ __attribute__((optimize(3)))
 static void reschedule(QueueNode *node) {
     __disable_irq();
     // set next run time
-    if(node->task.type == TaskSleep)
-        node->task.next = CLK_MONO_RAW;
+//    if(node->task.type == TaskSleep)
+//        node->task.next = CLK_MONO_RAW;
     node->task.next += node->task.intv;
 
     // remove from queue
