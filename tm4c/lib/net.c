@@ -50,8 +50,6 @@ static EMAC_TX_DESC txDesc[TX_RING_SIZE];
 static uint8_t txBuffer[TX_RING_SIZE][TX_BUFF_SIZE];
 
 
-static const uint8_t arpMultiMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-
 void PTP_process(uint8_t *frame, int flen);
 
 static void initDescriptors() {
