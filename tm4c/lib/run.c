@@ -87,7 +87,6 @@ static inline void queueRemove(QueueNode *node) {
     node->next->prev = node->prev;
 }
 
-__attribute__((optimize(3)))
 static void destroyNode(QueueNode *node) {
     if(node->task.run == doOnceExtended) {
         OnceExtended *ext = (OnceExtended *) node->task.ref;
@@ -102,7 +101,6 @@ static void destroyNode(QueueNode *node) {
     queueFree = node;
 }
 
-__attribute__((optimize(3)))
 static void insSchedule(QueueNode *node) {
     // ordered insertion into schedule queue
     QueueNode *ins = queueSchedule.next;
