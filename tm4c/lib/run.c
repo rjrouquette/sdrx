@@ -103,10 +103,6 @@ static void destroyNode(QueueNode *node) {
 __attribute__((optimize(3)))
 static void reschedule(QueueNode *node) {
     __disable_irq();
-    // remove from queue
-    node->prev->next = node->next;
-    node->next->prev = node->prev;
-
     // set next run time
     uint32_t nextRun = node->task.intv;
     nextRun += (node->task.type == TaskPeriodic) ? node->task.next: CLK_MONO_RAW;
@@ -120,6 +116,9 @@ static void reschedule(QueueNode *node) {
         ins = ins->next;
     }
 
+    // remove from queue
+    node->prev->next = node->next;
+    node->next->prev = node->prev;
     // insert task into the scheduling queue
     node->next = ins;
     node->prev = ins->prev;
@@ -302,10 +301,6 @@ void runWake(void *taskHandle) {
         ext->countDown = 0;
     }
 
-    // remove from queue
-    node->prev->next = node->next;
-    node->next->prev = node->prev;
-
     // set next run time
     const uint32_t nextRun = CLK_MONO_RAW;
     node->task.next = nextRun;
@@ -318,6 +313,9 @@ void runWake(void *taskHandle) {
         ins = ins->next;
     }
 
+    // remove from queue
+    node->prev->next = node->next;
+    node->next->prev = node->prev;
     // insert task into the scheduling queue
     node->next = ins;
     node->prev = ins->prev;
