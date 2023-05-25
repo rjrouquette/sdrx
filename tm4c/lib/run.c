@@ -56,7 +56,7 @@ static OnceExtended *extFree;
 static OnceExtended extPool[SLOT_CNT];
 
 static QueueNode *wakeList[SLOT_CNT];
-static int wakeCount;
+static volatile int wakeCount;
 
 static QueueNode * allocNode();
 
@@ -127,6 +127,24 @@ static void reschedule(QueueNode *node) {
 }
 
 __attribute__((optimize(3)))
+static void doWake() {
+    __disable_irq();
+    uint32_t now = CLK_MONO_RAW;
+    for(int i = 0; i < wakeCount; i++) {
+        QueueNode *node = wakeList[i];
+        // schedule task to run immediately
+        if (node->task.run == doOnceExtended) {
+            OnceExtended *ext = (OnceExtended *) node->task.ref;
+            ext->countDown = 0;
+        }
+        node->task.next = now;
+        reschedule(node);
+    }
+    wakeCount = 0;
+    __enable_irq();
+}
+
+__attribute__((optimize(3)))
 _Noreturn
 void runScheduler() {
     QueueNode *node = (QueueNode *) &queueSchedule;
@@ -142,19 +160,7 @@ void runScheduler() {
 
         // check for tasks to wake
         if(wakeCount) {
-            __disable_irq();
-            for(int i = 0; i < wakeCount; i++) {
-                QueueNode *wake = wakeList[i];
-                // schedule task to run immediately
-                if (wake->task.run == doOnceExtended) {
-                    OnceExtended *ext = (OnceExtended *) wake->task.ref;
-                    ext->countDown = 0;
-                }
-                wake->task.next = now;
-                reschedule(wake);
-            }
-            wakeCount = 0;
-            __enable_irq();
+            doWake();
             node = (QueueNode *) &queueSchedule;
             continue;
         }
