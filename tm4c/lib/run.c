@@ -60,7 +60,6 @@ static volatile int wakeCount;
 
 static QueueNode * allocNode();
 
-static void doWake(void *ref);
 static void doOnceExtended(void *ref);
 
 void initScheduler() {
@@ -75,8 +74,6 @@ void initScheduler() {
     // initialize queue pointers
     queueSchedule.next = (QueueNode *) &queueSchedule;
     queueSchedule.prev = (QueueNode *) &queueSchedule;
-
-    runSleep(1u << 12, doWake, NULL);
 }
 
 static QueueNode * allocNode() {
@@ -87,29 +84,28 @@ static QueueNode * allocNode() {
     return node;
 }
 
-__attribute__((always_inline))
-static inline void queueRemove(QueueNode *node) {
-    node->prev->next = node->next;
-    node->next->prev = node->prev;
-}
-
 __attribute__((optimize(3)))
 static void destroyNode(QueueNode *node) {
+    __disable_irq();
     if(node->task.run == doOnceExtended) {
         OnceExtended *ext = (OnceExtended *) node->task.ref;
         ext->ref = extFree;
         extFree = ext;
     }
-    queueRemove(node);
+    // remove from queue
+    node->prev->next = node->next;
+    node->next->prev = node->prev;
     // clear node
     memset((void *) node, 0, sizeof(QueueNode));
     // push onto free stack
     node->next = queueFree;
     queueFree = node;
+    __enable_irq();
 }
 
 __attribute__((optimize(3)))
 static void reschedule(QueueNode *node) {
+    __disable_irq();
     // remove from queue
     node->prev->next = node->next;
     node->next->prev = node->prev;
@@ -127,25 +123,6 @@ static void reschedule(QueueNode *node) {
     node->prev = ins->prev;
     ins->prev = node;
     node->prev->next = node;
-}
-
-__attribute__((optimize(3)))
-static void doWake(void *ref) {
-    if(wakeCount == 0) return;
-
-    __disable_irq();
-    uint32_t now = CLK_MONO_RAW;
-    for(int i = 0; i < wakeCount; i++) {
-        QueueNode *node = wakeList[i];
-        // schedule task to run immediately
-        if (node->task.run == doOnceExtended) {
-            OnceExtended *ext = (OnceExtended *) node->task.ref;
-            ext->countDown = 0;
-        }
-        node->task.next = now;
-        reschedule(node);
-    }
-    wakeCount = 0;
     __enable_irq();
 }
 
@@ -191,6 +168,7 @@ void runScheduler() {
 }
 
 static void schedule(QueueNode *node) {
+    __disable_irq();
     // locate optimal insertion point
     QueueNode *ins = queueSchedule.next;
     while(ins->task.type) {
@@ -204,6 +182,7 @@ static void schedule(QueueNode *node) {
     node->prev = ins->prev;
     ins->prev = node;
     node->prev->next = node;
+    __enable_irq();
 }
 
 void * runSleep(uint64_t delay, SchedulerCallback callback, void *ref) {
@@ -318,15 +297,14 @@ void * runOnce(uint64_t delay, SchedulerCallback callback, void *ref) {
 }
 
 void runWake(void *taskHandle) {
-    __disable_irq();
-    for(int i = 0; i < wakeCount; i++) {
-        if(wakeList[i] ==  taskHandle) {
-            __enable_irq();
-            return;
-        }
+    QueueNode *node = taskHandle;
+    // schedule task to run immediately
+    if (node->task.run == doOnceExtended) {
+        OnceExtended *ext = (OnceExtended *) node->task.ref;
+        ext->countDown = 0;
     }
-    wakeList[wakeCount++] = taskHandle;
-    __enable_irq();
+    node->task.next = CLK_MONO_RAW;
+    reschedule(node);
 }
 
 void runCancel(SchedulerCallback callback, void *ref) {
