@@ -142,6 +142,7 @@ void runScheduler() {
 
         // run the task
         (*(node->task.run))(node->task.ref);
+
         // compute next run time
         if(node->task.type == TaskSleep)
             node->task.next = CLK_MONO_RAW + node->task.intv;
