@@ -102,8 +102,12 @@ static void destroyNode(QueueNode *node) {
 }
 
 __attribute__((optimize(3)))
-static void insSchedule(QueueNode *node) {
-    // ordered insertion into schedule queue
+static void reschedule(QueueNode *node) {
+    // remove from queue
+    node->prev->next = node->next;
+    node->next->prev = node->prev;
+
+    // locate optimal insertion point
     QueueNode *ins = queueSchedule.next;
     while(ins->task.type) {
         if(((int32_t) (node->task.next - ins->task.next)) < 0)
@@ -129,8 +133,8 @@ void runScheduler() {
         // record time spent on prior task
         const uint32_t prior = now;
         now = CLK_MONO_RAW;
-        ++(node->task.hits);
         node->task.ticks += now - prior;
+        ++(node->task.hits);
 
         // check for scheduled tasks
         node = queueSchedule.next;
@@ -155,10 +159,24 @@ void runScheduler() {
             node = (QueueNode *) &queueSchedule;
             continue;
         }
-        // reschedule
-        queueRemove(node);
-        insSchedule(node);
+        reschedule(node);
     }
+}
+
+static void schedule(QueueNode *node) {
+    // locate optimal insertion point
+    QueueNode *ins = queueSchedule.next;
+    while(ins->task.type) {
+        if(((int32_t) (node->task.next - ins->task.next)) < 0)
+            break;
+        ins = ins->next;
+    }
+
+    // insert task into the scheduling queue
+    node->next = ins;
+    node->prev = ins->prev;
+    ins->prev = node;
+    node->prev->next = node;
 }
 
 void * runSleep(uint64_t delay, SchedulerCallback callback, void *ref) {
@@ -176,7 +194,7 @@ void * runSleep(uint64_t delay, SchedulerCallback callback, void *ref) {
     // start immediately
     node->task.next = CLK_MONO_RAW;
     // add to schedule
-    insSchedule(node);
+    schedule(node);
     return node;
 }
 
@@ -195,7 +213,7 @@ void * runPeriodic(uint64_t interval, SchedulerCallback callback, void *ref) {
     // start immediately
     node->task.next = CLK_MONO_RAW;
     // add to schedule
-    insSchedule(node);
+    schedule(node);
     return node;
 }
 
@@ -245,7 +263,7 @@ static void * runOnceExtended(uint64_t delay, SchedulerCallback callback, void *
     // start countdown immediately
     node->task.next = CLK_MONO_RAW + CLK_FREQ;
     // add to schedule
-    insSchedule(node);
+    schedule(node);
     return node;
 }
 
@@ -268,7 +286,7 @@ void * runOnce(uint64_t delay, SchedulerCallback callback, void *ref) {
     // start after delay
     node->task.next = CLK_MONO_RAW + scratch.ipart;
     // add to schedule
-    insSchedule(node);
+    schedule(node);
     return node;
 }
 
@@ -280,8 +298,7 @@ void runWake(void *taskHandle) {
         ext->countDown = 0;
     }
     node->task.next = CLK_MONO_RAW;
-    queueRemove(node);
-    insSchedule(node);
+    reschedule(node);
 }
 
 void runCancel(SchedulerCallback callback, void *ref) {
