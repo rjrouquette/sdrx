@@ -294,14 +294,36 @@ void * runOnce(uint64_t delay, SchedulerCallback callback, void *ref) {
 }
 
 void runWake(void *taskHandle) {
+    __disable_irq();
     QueueNode *node = taskHandle;
     // schedule task to run immediately
     if (node->task.run == doOnceExtended) {
         OnceExtended *ext = (OnceExtended *) node->task.ref;
         ext->countDown = 0;
     }
-    node->task.next = CLK_MONO_RAW;
-    reschedule(node);
+
+    // remove from queue
+    node->prev->next = node->next;
+    node->next->prev = node->prev;
+
+    // set next run time
+    const uint32_t nextRun = CLK_MONO_RAW;
+    node->task.next = nextRun;
+
+    // locate optimal insertion point
+    QueueNode *ins = queueSchedule.next;
+    while(ins != queueRoot) {
+        if(((int32_t) (nextRun - ins->task.next)) < 0)
+            break;
+        ins = ins->next;
+    }
+
+    // insert task into the scheduling queue
+    node->next = ins;
+    node->prev = ins->prev;
+    ins->prev = node;
+    node->prev->next = node;
+    __enable_irq();
 }
 
 void runCancel(SchedulerCallback callback, void *ref) {

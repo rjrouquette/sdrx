@@ -296,8 +296,8 @@ void NET_init() {
     DNS_init();
 
     // schedule RX/TX processing
-    taskRx = runSleep(1ull << 30, runRx, NULL);
-    taskTx = runSleep(1ull << 30, runTx, NULL);
+    taskRx = runSleep(1ull << 36, runRx, NULL);
+    taskTx = runSleep(1ull << 36, runTx, NULL);
 }
 
 void NET_getMacAddress(char *strAddr) {
