@@ -86,8 +86,8 @@ static inline void queueRemove(QueueNode *node) {
     node->next->prev = node->prev;
 }
 
-__attribute__((always_inline))
-static inline void destroyNode(QueueNode *node) {
+__attribute__((optimize(3)))
+static void destroyNode(QueueNode *node) {
     if(node->task.run == doOnceExtended) {
         OnceExtended *ext = (OnceExtended *) node->task.ref;
         ext->ref = extFree;
@@ -101,8 +101,8 @@ static inline void destroyNode(QueueNode *node) {
     queueFree = node;
 }
 
-__attribute__((always_inline))
-static inline void insSchedule(QueueNode *node) {
+__attribute__((optimize(3)))
+static void insSchedule(QueueNode *node) {
     // ordered insertion into schedule queue
     QueueNode *ins = queueSchedule.next;
     while(ins->task.type) {
@@ -129,8 +129,8 @@ void runScheduler() {
         // record time spent on prior task
         const uint32_t prior = now;
         now = CLK_MONO_RAW;
-        node->task.ticks += now - prior;
         ++(node->task.hits);
+        node->task.ticks += now - prior;
 
         // check for scheduled tasks
         node = queueSchedule.next;
