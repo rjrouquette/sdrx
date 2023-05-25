@@ -32,9 +32,6 @@
 #define TX_RING_SIZE (32)
 #define TX_BUFF_SIZE (1520)
 
-#define RX_POLL_INTV (1u << (32 - 16))
-#define TX_POLL_INTV (1u << (32 - 16))
-
 #define ADV_RING_RX(ptr) ((ptr) = ((ptr) + 1) & RX_RING_MASK)
 #define ADV_RING_TX(ptr) ((ptr) = ((ptr) + 1) & TX_RING_MASK)
 
@@ -181,6 +178,7 @@ static void initMAC() {
     EMAC0.TXDLADDR = (uint32_t) txDesc;
     EMAC0.DMAOPMODE.ST = 1;
     EMAC0.DMAOPMODE.SR = 1;
+    // enable RX/TX interrupts
     EMAC0.DMAIM.RIE = 1;
     EMAC0.DMAIM.TIE = 1;
     EMAC0.DMAIM.NIE = 1;
@@ -300,8 +298,8 @@ void NET_init() {
     DNS_init();
 
     // schedule RX/TX processing
-    taskRx = runSleep(1ull << 32, runRx, NULL);
-    taskTx = runSleep(1ull << 32, runTx, NULL);
+    taskRx = runSleep(1ull << 36, runRx, NULL);
+    taskTx = runSleep(1ull << 36, runTx, NULL);
 }
 
 void NET_getMacAddress(char *strAddr) {
@@ -393,7 +391,7 @@ void NET_getTxTime(const uint8_t *txFrame, volatile uint64_t *stamps) {
 
 
 // defined as a weak reference so it may be overriden
-//__attribute__((weak))
-//void PTP_process(uint8_t *frame, int flen) {
-//    __asm volatile("nop");
-//}
+__attribute__((weak))
+void PTP_process(uint8_t *frame, int flen) {
+    __asm volatile("nop");
+}
