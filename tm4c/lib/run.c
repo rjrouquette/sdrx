@@ -4,12 +4,12 @@
 
 #include <stddef.h>
 #include <memory.h>
+#include "../hw/interrupts.h"
 #include "clk/mono.h"
 #include "clk/util.h"
 #include "format.h"
 #include "led.h"
 #include "run.h"
-#include "../hw/interrupts.h"
 
 
 enum TaskType {
@@ -54,9 +54,6 @@ static volatile QueueNode queueSchedule;
 
 static OnceExtended *extFree;
 static OnceExtended extPool[SLOT_CNT];
-
-static QueueNode *wakeList[SLOT_CNT];
-static volatile int wakeCount;
 
 static QueueNode * allocNode();
 
