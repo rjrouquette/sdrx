@@ -109,10 +109,7 @@ static void reschedule(QueueNode *node) {
 
     // set next run time
     uint32_t nextRun = node->task.intv;
-    if(node->task.type == TaskPeriodic)
-        nextRun += node->task.next;
-    else
-        nextRun += node->task.intv + CLK_MONO_RAW;
+    nextRun += (node->task.type == TaskPeriodic) ? node->task.next: CLK_MONO_RAW;
     node->task.next = nextRun;
 
     // locate optimal insertion point
