@@ -16,6 +16,7 @@
 #define TEMP_SHIFT (14)
 #define TEMP_SCALE (0x1p-14f)
 
+#define INTV_TEMP (1u << (32 - 10))  // 1024 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
 
 #define TCMP_SAVE_INTV (3600) // save state every hour
@@ -65,6 +66,9 @@ void ISR_ADC0Sequence0() {
         temp += ADC0.SS0.FIFO.DATA - (temp >> TEMP_SHIFT);
     adcValue = temp;
     ++isrHits;
+}
+
+static void runTemp(void *ref) {
     ADC0.PSSI.SS0 = 1;
 }
 
@@ -123,6 +127,7 @@ void TCMP_init() {
     }
 
     // schedule thread
+    runSleep(INTV_TEMP, runTemp, NULL);
     runPeriodic(INTV_TCMP, runComp, NULL);
 }
 
