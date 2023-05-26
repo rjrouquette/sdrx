@@ -56,15 +56,15 @@ static void fitLinear(const float *data, int cnt, float *coef, float *mean);
  */
 static float tcmpEstimate(float temp);
 
-void ISR_ADC0Sequence3() {
+void ISR_ADC0Sequence0() {
     // start next temperature measurement
-    ADC0.PSSI.SS3 = 1;
+    ADC0.PSSI.SS0 = 1;
     // clear flag
-    ADC0.ISC.IN3 = 1;
+    ADC0.ISC.IN0 = 1;
     // update running average
     uint32_t temp = adcValue;
-    while(!ADC0.SS3.FSTAT.EMPTY)
-        temp += ADC0.SS3.FIFO.DATA - (temp >> TEMP_SHIFT);
+    while(!ADC0.SS0.FSTAT.EMPTY)
+        temp += ADC0.SS0.FIFO.DATA - (temp >> TEMP_SHIFT);
     adcValue = temp;
 }
 
@@ -84,39 +84,39 @@ void TCMP_init() {
     ADC0.CC.CLKDIV = 0;
     ADC0.CC.CS = ADC_CLK_MOSC;
     ADC0.SAC.AVG = 3;
-    ADC0.EMUX.EM3 = ADC_SS_TRIG_SOFT;
-    ADC0.SS3.CTL.TS0 = 1;
-    ADC0.SS3.TSH.TSH0 = ADC_TSH_256;
-    ADC0.SS3.CTL.TS1 = 1;
-    ADC0.SS3.TSH.TSH1 = ADC_TSH_256;
-    ADC0.SS3.CTL.TS2 = 1;
-    ADC0.SS3.TSH.TSH2 = ADC_TSH_256;
-    ADC0.SS3.CTL.TS3 = 1;
-    ADC0.SS3.TSH.TSH3 = ADC_TSH_256;
-    ADC0.SS3.CTL.TS4 = 1;
-    ADC0.SS3.TSH.TSH4 = ADC_TSH_256;
-    ADC0.SS3.CTL.TS5 = 1;
-    ADC0.SS3.TSH.TSH5 = ADC_TSH_256;
-    ADC0.SS3.CTL.TS6 = 1;
-    ADC0.SS3.TSH.TSH6 = ADC_TSH_256;
-    ADC0.SS3.CTL.TS7 = 1;
-    ADC0.SS3.TSH.TSH7 = ADC_TSH_256;
-    ADC0.SS3.CTL.IE7 = 1;
-    ADC0.SS3.CTL.END7 = 1;
-    ADC0.ACTSS.ASEN3 = 1;
+    ADC0.EMUX.EM0 = ADC_SS_TRIG_SOFT;
+    ADC0.SS0.CTL.TS0 = 1;
+    ADC0.SS0.TSH.TSH0 = ADC_TSH_256;
+    ADC0.SS0.CTL.TS1 = 1;
+    ADC0.SS0.TSH.TSH1 = ADC_TSH_256;
+    ADC0.SS0.CTL.TS2 = 1;
+    ADC0.SS0.TSH.TSH2 = ADC_TSH_256;
+    ADC0.SS0.CTL.TS3 = 1;
+    ADC0.SS0.TSH.TSH3 = ADC_TSH_256;
+    ADC0.SS0.CTL.TS4 = 1;
+    ADC0.SS0.TSH.TSH4 = ADC_TSH_256;
+    ADC0.SS0.CTL.TS5 = 1;
+    ADC0.SS0.TSH.TSH5 = ADC_TSH_256;
+    ADC0.SS0.CTL.TS6 = 1;
+    ADC0.SS0.TSH.TSH6 = ADC_TSH_256;
+    ADC0.SS0.CTL.TS7 = 1;
+    ADC0.SS0.TSH.TSH7 = ADC_TSH_256;
+    ADC0.SS0.CTL.IE7 = 1;
+    ADC0.SS0.CTL.END7 = 1;
+    ADC0.ACTSS.ASEN0 = 1;
     // take and discard some initial measurements
     for(int i = 0; i < 4; i++) {
-        ADC0.PSSI.SS3 = 1;      // trigger temperature measurement
-        while(!ADC0.RIS.INR3);  // wait for data
-        ADC0.ISC.IN3 = 1;       // clear flag
+        ADC0.PSSI.SS0 = 1;      // trigger temperature measurement
+        while(!ADC0.RIS.INR0);  // wait for data
+        ADC0.ISC.IN0 = 1;       // clear flag
         // drain FIFO
-        while(!ADC0.SS3.FSTAT.EMPTY)
-            adcValue = ADC0.SS3.FIFO.DATA;
+        while(!ADC0.SS0.FSTAT.EMPTY)
+            adcValue = ADC0.SS0.FIFO.DATA;
         adcValue <<= TEMP_SHIFT;
     }
     // start temperature measurement
-    ADC0.IM.MASK3 = 1;
-    ADC0.PSSI.SS3 = 1;
+    ADC0.IM.MASK0 = 1;
+    ADC0.PSSI.SS0 = 1;
 
     loadSom();
     if(isfinite(somNode[0][0])) {
