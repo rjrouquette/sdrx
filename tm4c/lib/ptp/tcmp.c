@@ -302,10 +302,10 @@ static void updateRegression() {
     // compute residual error
     rmse = 0;
     for(int i = 0; i < SOM_NODE_CNT; i++) {
-        float x = somNode[i][0] - mean[0];
-        float y = somNode[i][1] - mean[1];
+        float x = scratch[i][0] - mean[0];
+        float y = scratch[i][1] - mean[1];
         y -= x * coef[1];
-        rmse += y * y * somNode[i][2];
+        rmse += y * y * scratch[i][2];
     }
     tcmpRmse = sqrtf(rmse / mean[2]);
 
