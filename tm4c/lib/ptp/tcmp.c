@@ -16,7 +16,7 @@
 #define TEMP_RATE (11)
 #define TEMP_SCALE (0x1p-20f)
 
-#define INTV_TEMP (1u << (32 - 10))  // 1024 Hz
+#define INTV_TEMP (1u << (32 - 10)) // 1024 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
 
 #define TCMP_SAVE_INTV (3600) // save state every hour
