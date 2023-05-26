@@ -128,7 +128,7 @@ void TCMP_init() {
     }
 
     // schedule thread
-    runSleep(1ull << 36, runTemp, NULL);
+    runSleep(INTV_TEMP, runTemp, NULL);
     runPeriodic(INTV_TCMP, runComp, NULL);
 }
 
