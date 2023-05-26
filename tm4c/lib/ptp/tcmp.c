@@ -62,9 +62,11 @@ static float tcmpEstimate(float temp);
 static void runTemp(void *ref) {
     // start next temperature measurement
     ADC0.PSSI.SS3 = 1;
-    // update temperature
-    float temp = toCelsius(ADC0.SS3.FIFO.DATA);
-    tempValue += (temp - tempValue) * TEMP_ALPHA;\
+    // drain ADC FIFO
+    while(!ADC0.SS3.FSTAT.EMPTY) {
+        float temp = toCelsius(ADC0.SS3.FIFO.DATA);
+        tempValue += (temp - tempValue) * TEMP_ALPHA;
+    }
 }
 
 static void runComp(void *ref) {
