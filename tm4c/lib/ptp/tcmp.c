@@ -293,7 +293,7 @@ static void updateRegression() {
         float y = somNode[i][1] - mean[1];
         y -= x * coef[1];
         y *= y;
-        scratch[i][2] = (y <= rmse) ? somNode[1][2] : 0;
+        scratch[i][2] = (y <= rmse) ? somNode[i][2] : 0;
     }
 
     // compute final linear fit
