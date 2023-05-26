@@ -16,6 +16,7 @@
 #define TEMP_SHIFT (12)
 #define TEMP_SCALE (0x1p-12f)
 
+#define INTV_TEMP (1u << (32 - 10))  // 1024 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
 
 #define TCMP_SAVE_INTV (3600) // save state every hour
@@ -57,8 +58,6 @@ static void fitLinear(const float *data, int cnt, float *coef, float *mean);
 static float tcmpEstimate(float temp);
 
 void ISR_ADC0Sequence0() {
-    // start next temperature measurement
-    ADC0.PSSI.SS0 = 1;
     // clear flag
     ADC0.ISC.IN0 = 1;
     // update running average
@@ -66,6 +65,11 @@ void ISR_ADC0Sequence0() {
     while(!ADC0.SS0.FSTAT.EMPTY)
         temp += ADC0.SS0.FIFO.DATA - (temp >> TEMP_SHIFT);
     adcValue = temp;
+}
+
+static void runTemp(void *ref) {
+    // start next temperature measurement
+    ADC0.PSSI.SS0 = 1;
 }
 
 static void runComp(void *ref) {
@@ -83,7 +87,7 @@ void TCMP_init() {
     // configure ADC0 for temperature measurement
     ADC0.CC.CLKDIV = 0;
     ADC0.CC.CS = ADC_CLK_MOSC;
-    ADC0.SAC.AVG = 3;
+    ADC0.SAC.AVG = 0;
     ADC0.EMUX.EM0 = ADC_SS_TRIG_SOFT;
     ADC0.SS0.CTL.TS0 = 1;
     ADC0.SS0.TSH.TSH0 = ADC_TSH_256;
@@ -105,16 +109,14 @@ void TCMP_init() {
     ADC0.SS0.CTL.END7 = 1;
     ADC0.ACTSS.ASEN0 = 1;
     // take and discard some initial measurements
-    for(int i = 0; i < 4; i++) {
-        ADC0.PSSI.SS0 = 1;      // trigger temperature measurement
-        while(!ADC0.RIS.INR0);  // wait for data
-        ADC0.ISC.IN0 = 1;       // clear flag
-        // drain FIFO
-        while(!ADC0.SS0.FSTAT.EMPTY)
-            adcValue = ADC0.SS0.FIFO.DATA;
-        adcValue <<= TEMP_SHIFT;
-    }
-    // start temperature measurement
+    ADC0.PSSI.SS0 = 1;      // trigger temperature measurement
+    while(!ADC0.RIS.INR0);  // wait for data
+    ADC0.ISC.IN0 = 1;       // clear flag
+    // drain FIFO
+    while(!ADC0.SS0.FSTAT.EMPTY)
+        adcValue = ADC0.SS0.FIFO.DATA;
+    adcValue <<= TEMP_SHIFT;
+    // start free-running temperature measurement
     ADC0.IM.MASK0 = 1;
     ADC0.PSSI.SS0 = 1;
 
@@ -125,6 +127,7 @@ void TCMP_init() {
     }
 
     // schedule thread
+    runPeriodic(INTV_TEMP, runTemp, NULL);
     runPeriodic(INTV_TCMP, runComp, NULL);
 }
 
