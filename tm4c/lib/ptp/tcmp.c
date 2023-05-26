@@ -5,6 +5,7 @@
 #include <math.h>
 #include "../../hw/adc.h"
 #include "../../hw/eeprom.h"
+#include "../../hw/interrupts.h"
 #include "../clk/comp.h"
 #include "../clk/mono.h"
 #include "../delay.h"
@@ -12,7 +13,8 @@
 #include "../run.h"
 #include "tcmp.h"
 
-#define TEMP_ALPHA (0x1p-10f)
+#define TEMP_SHIFT (11)
+#define TEMP_SCALE (0x1p-11f)
 
 #define INTV_TEMP (1u << (32 - 11)) // 2048 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
@@ -27,6 +29,7 @@
 
 #define REG_MIN_RMSE (250e-9f)
 
+static volatile uint32_t adcValue;
 static volatile float tempValue;
 
 static volatile uint32_t tcmpSaved;
@@ -59,18 +62,20 @@ static void fitLinear(const float *data, int cnt, float *coef, float *mean);
  */
 static float tcmpEstimate(float temp);
 
-static void runTemp(void *ref) {
+void ISR_ADC0Sequence3() {
     // start next temperature measurement
     ADC0.PSSI.SS3 = 1;
-    // drain ADC FIFO
-    while(!ADC0.SS3.FSTAT.EMPTY) {
-        float temp = toCelsius(ADC0.SS3.FIFO.DATA);
-        tempValue += (temp - tempValue) * TEMP_ALPHA;
-    }
+    // clear flag
+    ADC0.ISC.IN3 = 1;
+    // update running average
+    uint32_t acc = adcValue;
+    acc += ADC0.SS3.FIFO.DATA - (acc >> TEMP_SHIFT);
+    adcValue = acc;
 }
 
 static void runComp(void *ref) {
     // update temperature compensation
+    tempValue = 147.5f - (0.0604248047f * TEMP_SCALE * (float) adcValue);
     tcmpValue = tcmpEstimate(tempValue);
     CLK_COMP_setComp((int32_t) (0x1p32f * tcmpValue));
 }
@@ -97,9 +102,11 @@ void TCMP_init() {
         ADC0.ISC.IN3 = 1;       // clear flag
         // drain FIFO
         while(!ADC0.SS3.FSTAT.EMPTY)
-            tempValue = toCelsius(ADC0.SS3.FIFO.DATA);
+            adcValue = ADC0.SS3.FIFO.DATA;
+        adcValue <<= TEMP_SHIFT;
     }
-    // start next temperature measurement
+    // start temperature measurement
+    ADC0.IM.MASK3 = 1;
     ADC0.PSSI.SS3 = 1;
 
     loadSom();
@@ -108,8 +115,7 @@ void TCMP_init() {
         runComp(NULL);
     }
 
-    // schedule threads
-    runPeriodic(INTV_TEMP, runTemp, NULL);
+    // schedule thread
     runPeriodic(INTV_TCMP, runComp, NULL);
 }
 
