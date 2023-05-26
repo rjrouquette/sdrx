@@ -62,8 +62,10 @@ void ISR_ADC0Sequence3() {
     // clear flag
     ADC0.ISC.IN3 = 1;
     // update running average
+    uint32_t temp = adcValue;
     while(!ADC0.SS3.FSTAT.EMPTY)
-        adcValue += ADC0.SS3.FIFO.DATA - (adcValue >> TEMP_SHIFT);
+        temp += ADC0.SS3.FIFO.DATA - (temp >> TEMP_SHIFT);
+    adcValue = temp;
 }
 
 static void runComp(void *ref) {
