@@ -12,9 +12,9 @@
 #include "../run.h"
 #include "tcmp.h"
 
-#define TEMP_ALPHA (0x1p-9f)
+#define TEMP_ALPHA (0x1p-10f)
 
-#define INTV_TEMP (1u << (32 - 10)) // 1024 Hz
+#define INTV_TEMP (1u << (32 - 11)) // 2048 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
 
 #define TCMP_SAVE_INTV (3600) // save state every hour
@@ -88,7 +88,7 @@ void TCMP_init() {
     ADC0.SS3.CTL.IE0 = 1;
     ADC0.SS3.CTL.END0 = 1;
     ADC0.SS3.CTL.TS0 = 1;
-    ADC0.SS3.TSH.TSH0 = ADC_TSH_256;
+    ADC0.SS3.TSH.TSH0 = ADC_TSH_128;
     ADC0.ACTSS.ASEN3 = 1;
     // take and discard some initial measurements
     for(int i = 0; i < 16; i++) {
