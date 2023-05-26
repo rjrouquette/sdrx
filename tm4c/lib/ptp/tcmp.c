@@ -12,8 +12,8 @@
 #include "../run.h"
 #include "tcmp.h"
 
-#define TEMP_SHIFT (12)
-#define TEMP_SCALE (0x1p-12f)
+#define TEMP_SHIFT (13)
+#define TEMP_SCALE (0x1p-13f)
 
 #define INTV_TEMP (1u << (32 - 10))  // 1024 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
