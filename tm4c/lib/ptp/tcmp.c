@@ -13,8 +13,8 @@
 #include "../run.h"
 #include "tcmp.h"
 
-#define TEMP_SHIFT (10)
-#define TEMP_SCALE (0x1p-10f)
+#define TEMP_SHIFT (9)
+#define TEMP_SCALE (0x1p-9f)
 
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
 
@@ -42,11 +42,6 @@ static volatile float tcmpRmse;
 static volatile float somNode[SOM_NODE_CNT][3];
 static volatile float somNW[SOM_NODE_CNT];
 
-__attribute__((always_inline))
-static inline float toCelsius(int32_t adcValue) {
-    return -0.0604248047f * (float) (adcValue - 2441);
-}
-
 static void loadSom();
 static void saveSom();
 static void seedSom(float temp, float comp);
@@ -67,9 +62,7 @@ void ISR_ADC0Sequence3() {
     // clear flag
     ADC0.ISC.IN3 = 1;
     // update running average
-    uint32_t acc = adcValue;
-    acc += ADC0.SS3.FIFO.DATA - (acc >> TEMP_SHIFT);
-    adcValue = acc;
+    adcValue += ADC0.SS3.FIFO.DATA - (adcValue >> TEMP_SHIFT);
 }
 
 static void runComp(void *ref) {
