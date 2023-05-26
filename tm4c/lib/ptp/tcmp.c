@@ -13,7 +13,7 @@
 #include "tcmp.h"
 
 #define TEMP_SHIFT (10)
-#define TEMP_SCALE (0x1p-10f)
+#define TEMP_SCALE (0x1p-14f)
 
 #define INTV_TEMP (1u << (32 - 10))  // 1024 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
@@ -58,8 +58,10 @@ static float tcmpEstimate(float temp);
 
 static void runTemp(void *ref) {
     uint32_t temp = adcValue;
-    while(!ADC0.SS0.FSTAT.EMPTY)
-        temp += ADC0.SS0.FIFO.DATA - (temp >> TEMP_SHIFT);
+    while(!ADC0.SS0.FSTAT.EMPTY) {
+        uint32_t adc = ADC0.SS0.FIFO.DATA;
+        temp += (adc << 4) - (temp >> TEMP_SHIFT);
+    }
     adcValue = temp;
     ADC0.PSSI.SS0 = 1;
 }
@@ -105,9 +107,10 @@ void TCMP_init() {
     while(!ADC0.RIS.INR0);  // wait for data
     ADC0.ISC.IN0 = 1;       // clear flag
     // drain FIFO
+    uint32_t adc;
     while(!ADC0.SS0.FSTAT.EMPTY)
-        adcValue = ADC0.SS0.FIFO.DATA;
-    adcValue <<= TEMP_SHIFT;
+        adc = ADC0.SS0.FIFO.DATA;
+    adcValue = adc << (TEMP_SHIFT + 4);
 
     loadSom();
     if(isfinite(somNode[0][0])) {
