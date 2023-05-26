@@ -60,11 +60,11 @@ static float tcmpEstimate(float temp);
 
 static volatile uint32_t isrHits = 0;
 void ISR_ADC0Sequence0() {
-    ADC0.ISC.IN0 = 1;
     uint32_t temp = adcValue;
     while(!ADC0.SS0.FSTAT.EMPTY)
         temp += ADC0.SS0.FIFO.DATA - (temp >> TEMP_SHIFT);
     adcValue = temp;
+    ADC0.ISC.IN0 = 1;
     ++isrHits;
 }
 
