@@ -5,7 +5,6 @@
 #include <math.h>
 #include "../../hw/adc.h"
 #include "../../hw/eeprom.h"
-#include "../../hw/interrupts.h"
 #include "../clk/comp.h"
 #include "../clk/mono.h"
 #include "../delay.h"
@@ -29,7 +28,6 @@
 
 #define REG_MIN_RMSE (250e-9f)
 
-static void * volatile taskTemp;
 static volatile uint32_t adcValue;
 static volatile float tempValue;
 
@@ -58,17 +56,11 @@ static void fitLinear(const float *data, int cnt, float *coef, float *mean);
  */
 static float tcmpEstimate(float temp);
 
-static volatile uint32_t isrHits = 0;
-void ISR_ADC0Sequence0() {
+static void runTemp(void *ref) {
     uint32_t temp = adcValue;
     while(!ADC0.SS0.FSTAT.EMPTY)
         temp += ADC0.SS0.FIFO.DATA - (temp >> TEMP_SHIFT);
     adcValue = temp;
-    ADC0.ISC.IN0 = 1;
-    ++isrHits;
-}
-
-static void runTemp(void *ref) {
     ADC0.PSSI.SS0 = 1;
 }
 
@@ -116,9 +108,6 @@ void TCMP_init() {
     while(!ADC0.SS0.FSTAT.EMPTY)
         adcValue = ADC0.SS0.FIFO.DATA;
     adcValue <<= TEMP_SHIFT;
-    // start free-running temperature measurement
-    ADC0.IM.MASK0 = 1;
-    ADC0.PSSI.SS0 = 1;
 
     loadSom();
     if(isfinite(somNode[0][0])) {
@@ -150,18 +139,11 @@ void TCMP_update(const float target) {
     }
 }
 
-uint32_t prevHits;
 unsigned TCMP_status(char *buffer) {
     char tmp[32];
     char *end = buffer;
 
     end = append(end, "tcomp status:\n");
-
-    tmp[toDec(isrHits - prevHits, 12, ' ', tmp)] = 0;
-    end = append(end, "  - hits:    ");
-    end = append(end, tmp);
-    end = append(end, "\n");
-    prevHits = isrHits;
 
     tmp[fmtFloat(tempValue, 12, 4, tmp)] = 0;
     end = append(end, "  - temp:    ");
