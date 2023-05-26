@@ -12,7 +12,8 @@
 #include "../run.h"
 #include "tcmp.h"
 
-#define TEMP_SHIFT (10)
+#define ADC_TO_32(x) ((x) << 20)
+#define TEMP_RATE (1u << 11)
 #define TEMP_SCALE (0x1p-20f)
 
 #define INTV_TEMP (1u << (32 - 10))  // 1024 Hz
@@ -60,7 +61,7 @@ static void runTemp(void *ref) {
     uint32_t temp = adcValue;
     while(!ADC0.SS0.FSTAT.EMPTY) {
         uint32_t adc = ADC0.SS0.FIFO.DATA;
-        temp += ((int32_t) ((adc << 20) - temp)) / 1024;
+        temp += ((int32_t) (ADC_TO_32(adc) - temp)) / TEMP_RATE;
     }
     adcValue = temp;
     ADC0.PSSI.SS0 = 1;
@@ -110,7 +111,7 @@ void TCMP_init() {
     uint32_t adc;
     while(!ADC0.SS0.FSTAT.EMPTY)
         adc = ADC0.SS0.FIFO.DATA;
-    adcValue = adc << 20;
+    adcValue = ADC_TO_32(adc);
 
     loadSom();
     if(isfinite(somNode[0][0])) {
