@@ -60,7 +60,7 @@ static float tcmpEstimate(float temp);
 static void runTemp(void *ref) {
     uint32_t temp = adcValue;
     while(!ADC0.SS0.FSTAT.EMPTY) {
-        uint32_t delta = ADC0.SS0.FIFO.DATA;
+        int32_t delta = ADC0.SS0.FIFO.DATA;
         delta = ADC_TO_32(delta) - temp;
         temp += delta >> TEMP_RATE;
     }
