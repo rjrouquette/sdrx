@@ -50,6 +50,7 @@ static void saveSom();
 static void seedSom(float temp, float comp);
 static void updateSom(float temp, float comp);
 static void updateRegression();
+static void fitLinear(const float *data, int cnt, float *coef, float *mean);
 
 /**
  * Estimate temperature correction using 3rd order taylor series
@@ -252,21 +253,14 @@ static void updateSom(float temp, float comp) {
 }
 
 static void updateRegression() {
-    // compute means
-    float mean[3] = {0, 0, 0};
-    for(int i = 0; i < SOM_NODE_CNT; i++) {
-        const volatile float *row = somNode[i];
-        mean[0] += row[0] * row[2];
-        mean[1] += row[1] * row[2];
-        mean[2] += row[2];
-    }
+    float mean[3];
+    float coef[4];
 
+    // compute initial linear fit
+    fitLinear((float *) somNode, SOM_NODE_CNT, coef + 1, mean);
     // wait for sufficient data
     if(mean[2] < SOM_FILL_OFF)
         return;
-    // normalize means
-    mean[0] /= mean[2];
-    mean[1] /= mean[2];
     // update means
     tcmpMean[0] = mean[0];
     tcmpMean[1] = mean[1];
@@ -276,68 +270,55 @@ static void updateRegression() {
     if(mean[2] < SOM_FILL_REG)
         return;
 
-    // scratch variables
-    float coeff[3];
-    float scratch[SOM_NODE_CNT][2];
-    float xx, xy;
-
-    // linear coefficient
-    xx = 0; xy = 0;
-    for(int i = 0; i < SOM_NODE_CNT; i++) {
-        const volatile float *row = somNode[i];
-        float x = scratch[i][0] = row[0] - mean[0];
-        float y = scratch[i][1] = row[1] - mean[1];
-        xx += x * x * row[2];
-        xy += x * y * row[2];
-    }
-    coeff[0] = xy / xx;
-
-    // quadratic coefficient
-    xx = 0; xy = 0;
-    for(int i = 0; i < SOM_NODE_CNT; i++) {
-        const volatile float *row = somNode[i];
-        float x = scratch[i][0];
-        float y = (scratch[i][1] -= x * coeff[0]);
-        x = x * x;
-        xx += x * x * row[2];
-        xy += x * y * row[2];
-    }
-    coeff[1] = xy / xx;
-
-    // cubic coefficient
-    xx = 0; xy = 0;
-    for(int i = 0; i < SOM_NODE_CNT; i++) {
-        const volatile float *row = somNode[i];
-        float x = scratch[i][0];
-        float y = (scratch[i][1] -= x * x * coeff[1]);
-        x = x * x * x;
-        xx += x * x * row[2];
-        xy += x * y * row[2];
-    }
-    coeff[2] = xy / xx;
-
-
-    // compute RMS error
+    // compute residual error
     float rmse = 0;
     for(int i = 0; i < SOM_NODE_CNT; i++) {
-        const volatile float *row = somNode[i];
+        float x = somNode[i][0] - mean[0];
+        float y = somNode[i][1] - mean[1];
+        y -= x * coef[1];
+        rmse += y * y * somNode[i][2];
+    }
+    rmse /= mean[2];
+    rmse *= 4;
 
-        float x = row[0] - mean[0];
-        float y = mean[1];
-        y += x * coeff[0];
-        y += x * x * coeff[1];
-        y += x * x * x * coeff[2];
+    // prune outliers
+    float scratch[SOM_NODE_CNT][3];
+    for(int i = 0; i < SOM_NODE_CNT; i++) {
+        // copy X and Y values
+        scratch[i][0] = somNode[i][0];
+        scratch[i][1] = somNode[i][1];
 
-        float error = y - row[1];
-        rmse += error * error * row[2];
+        // determine if sample should be excluded
+        float x = somNode[i][0] - mean[0];
+        float y = somNode[i][1] - mean[1];
+        y -= x * coef[1];
+        y *= y;
+        scratch[i][2] = (y <= rmse) ? somNode[1][2] : 0;
+    }
+
+    // compute final linear fit
+    fitLinear((float *) scratch, SOM_NODE_CNT, coef + 1, mean);
+
+    // compute residual error
+    rmse = 0;
+    for(int i = 0; i < SOM_NODE_CNT; i++) {
+        float x = somNode[i][0] - mean[0];
+        float y = somNode[i][1] - mean[1];
+        y -= x * coef[1];
+        rmse += y * y * somNode[i][2];
     }
     tcmpRmse = sqrtf(rmse / mean[2]);
 
-    // update coefficients
+    // quality check fit
     if(tcmpRmse <= REG_MIN_RMSE) {
-        tcmpCoeff[0] = coeff[0];
-        tcmpCoeff[1] = coeff[1];
-        tcmpCoeff[2] = coeff[2];
+        // update means
+        tcmpMean[0] = mean[0];
+        tcmpMean[1] = mean[1];
+        tcmpMean[2] = mean[2];
+        // update coefficients
+        tcmpCoeff[0] = coef[1];
+        tcmpCoeff[1] = 0;
+        tcmpCoeff[2] = 0;
     }
 }
 
@@ -368,4 +349,31 @@ unsigned statusSom(char *buffer) {
     end = append(end, "};\n");
 
     return end - buffer;
+}
+
+__attribute__((optimize(3)))
+static void fitLinear(const float * const data, const int cnt, float *coef, float *mean) {
+    // compute means
+    mean[0] = 0;
+    mean[1] = 0;
+    mean[2] = 0;
+    for(int i = 0; i < cnt; i++) {
+        const float *row = data + (i * 3);
+        mean[0] += row[0] * row[2];
+        mean[1] += row[1] * row[2];
+        mean[2] += row[2];
+    }
+    mean[0] /= mean[2];
+    mean[1] /= mean[2];
+
+    float xx = 0, xy = 0;
+    for(int i = 0; i < cnt; i++) {
+        const float *row = data + (i * 3);
+        float x = row[0] - mean[0];
+        float y = row[1] - mean[1];
+
+        xx += x * x * row[2];
+        xy += x * y * row[2];
+    }
+    coef[0] = xy / xx;
 }
