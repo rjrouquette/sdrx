@@ -13,8 +13,8 @@
 #include "../run.h"
 #include "tcmp.h"
 
-#define TEMP_SHIFT (9)
-#define TEMP_SCALE (0x1p-9f)
+#define TEMP_SHIFT (12)
+#define TEMP_SCALE (0x1p-12f)
 
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
 
@@ -62,7 +62,8 @@ void ISR_ADC0Sequence3() {
     // clear flag
     ADC0.ISC.IN3 = 1;
     // update running average
-    adcValue += ADC0.SS3.FIFO.DATA - (adcValue >> TEMP_SHIFT);
+    while(!ADC0.SS3.FSTAT.EMPTY)
+        adcValue += ADC0.SS3.FIFO.DATA - (adcValue >> TEMP_SHIFT);
 }
 
 static void runComp(void *ref) {
@@ -80,15 +81,29 @@ void TCMP_init() {
     // configure ADC0 for temperature measurement
     ADC0.CC.CLKDIV = 0;
     ADC0.CC.CS = ADC_CLK_MOSC;
-    ADC0.SAC.AVG = 5;
+    ADC0.SAC.AVG = 3;
     ADC0.EMUX.EM3 = ADC_SS_TRIG_SOFT;
-    ADC0.SS3.CTL.IE0 = 1;
-    ADC0.SS3.CTL.END0 = 1;
     ADC0.SS3.CTL.TS0 = 1;
     ADC0.SS3.TSH.TSH0 = ADC_TSH_256;
+    ADC0.SS3.CTL.TS1 = 1;
+    ADC0.SS3.TSH.TSH1 = ADC_TSH_256;
+    ADC0.SS3.CTL.TS2 = 1;
+    ADC0.SS3.TSH.TSH2 = ADC_TSH_256;
+    ADC0.SS3.CTL.TS3 = 1;
+    ADC0.SS3.TSH.TSH3 = ADC_TSH_256;
+    ADC0.SS3.CTL.TS4 = 1;
+    ADC0.SS3.TSH.TSH4 = ADC_TSH_256;
+    ADC0.SS3.CTL.TS5 = 1;
+    ADC0.SS3.TSH.TSH5 = ADC_TSH_256;
+    ADC0.SS3.CTL.TS6 = 1;
+    ADC0.SS3.TSH.TSH6 = ADC_TSH_256;
+    ADC0.SS3.CTL.TS7 = 1;
+    ADC0.SS3.TSH.TSH7 = ADC_TSH_256;
+    ADC0.SS3.CTL.IE7 = 1;
+    ADC0.SS3.CTL.END7 = 1;
     ADC0.ACTSS.ASEN3 = 1;
     // take and discard some initial measurements
-    for(int i = 0; i < 16; i++) {
+    for(int i = 0; i < 4; i++) {
         ADC0.PSSI.SS3 = 1;      // trigger temperature measurement
         while(!ADC0.RIS.INR3);  // wait for data
         ADC0.ISC.IN3 = 1;       // clear flag
