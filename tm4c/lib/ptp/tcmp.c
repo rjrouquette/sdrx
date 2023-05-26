@@ -61,7 +61,9 @@ static void runTemp(void *ref) {
     uint32_t temp = adcValue;
     while(!ADC0.SS0.FSTAT.EMPTY) {
         uint32_t adc = ADC0.SS0.FIFO.DATA;
-        temp += ((int32_t) (ADC_TO_32(adc) - temp)) / TEMP_RATE;
+        int32_t delta = ADC_TO_32(adc) - temp;
+        delta >>= 11;
+        temp += delta;
     }
     adcValue = temp;
     ADC0.PSSI.SS0 = 1;
