@@ -29,6 +29,7 @@
 
 #define REG_MIN_RMSE (250e-9f)
 
+static void * volatile taskTemp;
 static volatile uint32_t adcValue;
 static volatile float tempValue;
 
@@ -58,16 +59,16 @@ static void fitLinear(const float *data, int cnt, float *coef, float *mean);
 static float tcmpEstimate(float temp);
 
 void ISR_ADC0Sequence0() {
-    // clear flag
     ADC0.ISC.IN0 = 1;
+    runWake(taskTemp);
+}
+
+static void runTemp(void *ref) {
     // update running average
     uint32_t temp = adcValue;
     while(!ADC0.SS0.FSTAT.EMPTY)
         temp += ADC0.SS0.FIFO.DATA - (temp >> TEMP_SHIFT);
     adcValue = temp;
-}
-
-static void runTemp(void *ref) {
     // start next temperature measurement
     ADC0.PSSI.SS0 = 1;
 }
@@ -127,7 +128,7 @@ void TCMP_init() {
     }
 
     // schedule thread
-    runPeriodic(INTV_TEMP, runTemp, NULL);
+    taskTemp = runPeriodic(1ull << 36, runTemp, NULL);
     runPeriodic(INTV_TCMP, runComp, NULL);
 }
 
