@@ -58,17 +58,15 @@ static void fitLinear(const float *data, int cnt, float *coef, float *mean);
  */
 static float tcmpEstimate(float temp);
 
-//void ISR_ADC0Sequence0() {
-//    ADC0.ISC.IN0 = 1;
-//    runWake(taskTemp);
-//}
-
-static void runTemp(void *ref) {
-    // update running average
+void ISR_ADC0Sequence0() {
+    ADC0.ISC.IN0 = 1;
     uint32_t temp = adcValue;
     while(!ADC0.SS0.FSTAT.EMPTY)
         temp += ADC0.SS0.FIFO.DATA - (temp >> TEMP_SHIFT);
     adcValue = temp;
+}
+
+static void runTemp(void *ref) {
     // start next temperature measurement
     ADC0.PSSI.SS0 = 1;
 }
@@ -118,8 +116,8 @@ void TCMP_init() {
         adcValue = ADC0.SS0.FIFO.DATA;
     adcValue <<= TEMP_SHIFT;
     // start free-running temperature measurement
-//    ADC0.IM.MASK0 = 1;
-//    ADC0.PSSI.SS0 = 1;
+    ADC0.IM.MASK0 = 1;
+    ADC0.PSSI.SS0 = 1;
 
     loadSom();
     if(isfinite(somNode[0][0])) {
