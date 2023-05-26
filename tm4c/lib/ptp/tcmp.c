@@ -25,7 +25,7 @@
 #define SOM_FILL_REG (8.0f)
 #define SOM_RATE_MAX (0.25f)
 
-#define REG_MIN_RMSE (100e-9f)
+#define REG_MIN_RMSE (250e-9f)
 
 static volatile float tempValue;
 
