@@ -87,7 +87,7 @@ void TCMP_init() {
     // configure ADC0 for temperature measurement
     ADC0.CC.CLKDIV = 0;
     ADC0.CC.CS = ADC_CLK_MOSC;
-    ADC0.SAC.AVG = 6;
+    ADC0.SAC.AVG = 5;
     ADC0.EMUX.EM3 = ADC_SS_TRIG_SOFT;
     ADC0.SS3.CTL.IE0 = 1;
     ADC0.SS3.CTL.END0 = 1;
