@@ -5,10 +5,10 @@
 #include <math.h>
 #include "../clk/comp.h"
 #include "../clk/tai.h"
+#include "../clk/util.h"
 #include "../format.h"
 #include "pll.h"
 #include "tcmp.h"
-#include "../clk/util.h"
 
 
 // offset statistics
