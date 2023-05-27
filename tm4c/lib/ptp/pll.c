@@ -43,7 +43,7 @@ void ptpRestartOffset();
 
 void PLL_updateOffset(const float offset) {
     // large offset delta
-    if(fabsf(offset) >= 0.01f) {
+    if(fabsf(offset) >= PLL_OFFSET_HARD_ALIGN) {
         // convert float to 64-bit fixed-point
         union fixed_32_32 scratch;
         scratch.ipart = (int32_t) floorf(offset);
