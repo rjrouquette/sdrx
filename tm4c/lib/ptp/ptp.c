@@ -83,8 +83,8 @@ void PTP_init() {
 
     // set clock ID to MAC address
     getMAC(ptpClockId + 2);
-    // update source delay at 2 Hz
-    runSleep(1ull << 31, runDelay, NULL);
+    // update source delay at 4 Hz
+    runSleep(1ull << 30, runDelay, NULL);
     // update offset measurement every second
     runSleep(1ull << 32, runMeasure, NULL);
 }
