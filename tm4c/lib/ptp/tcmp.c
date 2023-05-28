@@ -16,7 +16,7 @@
 #define TEMP_RATE (0x1p-9f)
 
 #define INTV_TEMP (1u << (32 - 10)) // 1024 Hz
-#define INTV_TCMP (1u << (32 - 4))  // 16 Hz
+#define INTV_TCMP (1u << (32 - 4))  // 4 Hz
 
 #define TCMP_SAVE_INTV (3600) // save state every hour
 
@@ -29,7 +29,7 @@
 #define REG_MIN_RMSE (250e-9f)
 
 static volatile int adcCount;
-static float adcSamples[64];
+static float adcSamples[256];
 static volatile float tempValue;
 
 static volatile uint32_t tcmpSaved;
@@ -72,7 +72,7 @@ static void runAdc(void *ref) {
     ADC0.PSSI.SS0 = 1;
 
     // store result
-    if(adcCount >= 64) faultBlink(5, 1);
+    if(adcCount >= 256) faultBlink(5, 1);
     adcSamples[adcCount++] = 0x1p-3f * (float) acc;
 }
 
