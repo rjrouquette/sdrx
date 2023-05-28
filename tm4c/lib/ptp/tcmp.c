@@ -175,6 +175,11 @@ unsigned TCMP_status(char *buffer) {
     end = append(end, tmp);
     end = append(end, " C\n");
 
+    tmp[fmtFloat(0.0604248047f * sqrtf(adcVar), 12, 4, tmp)] = 0;
+    end = append(end, "  - noise:   ");
+    end = append(end, tmp);
+    end = append(end, " C\n");
+
     tmp[fmtFloat(tcmpMean[2], 12, 4, tmp)] = 0;
     end = append(end, "  - fill:    ");
     end = append(end, tmp);
