@@ -12,9 +12,7 @@
 #include "../run.h"
 #include "tcmp.h"
 
-#define ADC_TO_32(x) ((x) << 20)
-#define TEMP_RATE (12)
-#define TEMP_SCALE (0x1p-20f)
+#define TEMP_RATE (0x1p-9f)
 
 #define INTV_TEMP (1u << (32 - 10)) // 1024 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 16 Hz
@@ -29,7 +27,7 @@
 
 #define REG_MIN_RMSE (250e-9f)
 
-static volatile uint32_t adcValue;
+static volatile float adcValue;
 static volatile float tempValue;
 
 static volatile uint32_t tcmpSaved;
@@ -58,19 +56,25 @@ static void fitLinear(const float *data, int cnt, float *coef, float *mean);
 static float tcmpEstimate(float temp);
 
 static void runTemp(void *ref) {
-    uint32_t temp = adcValue;
-    while(!ADC0.SS0.FSTAT.EMPTY) {
-        int32_t delta = ADC0.SS0.FIFO.DATA;
-        delta = ADC_TO_32(delta) - temp;
-        temp += delta >> TEMP_RATE;
-    }
-    adcValue = temp;
+    uint32_t acc;
+    // FIFO will always contain eight samples
+    acc  = ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+
+    // accumulate result
+    adcValue += TEMP_RATE * ((0x1p-3f * (float) (acc)) - adcValue);
     ADC0.PSSI.SS0 = 1;
 }
 
 static void runComp(void *ref) {
     // update temperature compensation
-    tempValue = 147.5f - (0.0604248047f * TEMP_SCALE * (float) adcValue);
+    tempValue = 147.5f - (0.0604248047f * adcValue);
     tcmpValue = tcmpEstimate(tempValue);
     CLK_COMP_setComp((int32_t) (0x1p32f * tcmpValue));
 }
@@ -112,7 +116,7 @@ void TCMP_init() {
     uint32_t adc;
     while(!ADC0.SS0.FSTAT.EMPTY)
         adc = ADC0.SS0.FIFO.DATA;
-    adcValue = ADC_TO_32(adc);
+    adcValue = (float) adc;
 
     loadSom();
     if(isfinite(somNode[0][0])) {
