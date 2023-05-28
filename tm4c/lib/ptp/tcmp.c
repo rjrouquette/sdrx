@@ -11,9 +11,8 @@
 #include "../format.h"
 #include "../run.h"
 #include "tcmp.h"
-#include "../led.h"
 
-#define TEMP_RATE (0x1p-9f)
+#define ADC_RATE (0x1p-9f)
 
 #define INTV_TEMP (1u << (32 - 10)) // 1024 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 4 Hz
@@ -28,8 +27,8 @@
 
 #define REG_MIN_RMSE (250e-9f)
 
-static volatile int adcCount;
-static float adcSamples[256];
+static volatile float adcMean;
+static volatile float adcVar;
 static volatile float tempValue;
 
 static volatile uint32_t tcmpSaved;
@@ -72,19 +71,17 @@ static void runAdc(void *ref) {
     ADC0.PSSI.SS0 = 1;
 
     // store result
-    if(adcCount >= 256) faultBlink(5, 1);
-    adcSamples[adcCount++] = 0x1p-3f * (float) acc;
+    float adcValue = 0x1p-3f * (float) acc;
+    float diff = adcValue - adcMean;
+    float var = diff * diff;
+    if(var * 4 < adcVar)
+        adcMean += ADC_RATE * diff;
+    adcVar += ADC_RATE * (var - adcVar);
 }
 
 static void runComp(void *ref) {
-    float adcValue = 0;
-    for(int i = 0; i < adcCount; i++)
-        adcValue += adcSamples[i];
-    adcValue /= (float) adcCount;
-    adcCount = 0;
-
     // update temperature compensation
-    tempValue = 147.5f - (0.0604248047f * adcValue);
+    tempValue = 147.5f - (0.0604248047f * adcMean);
     tcmpValue = tcmpEstimate(tempValue);
     CLK_COMP_setComp((int32_t) (0x1p32f * tcmpValue));
 }
@@ -122,8 +119,20 @@ void TCMP_init() {
     ADC0.PSSI.SS0 = 1;      // trigger temperature measurement
     while(!ADC0.RIS.INR0);  // wait for data
     ADC0.ISC.IN0 = 1;       // clear flag
-    // drain FIFO
-    runAdc(NULL);
+    uint32_t acc;
+    // ADC FIFO will always contain eight samples
+    acc  = ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    acc += ADC0.SS0.FIFO.DATA;
+    // trigger next sample
+    ADC0.PSSI.SS0 = 1;
+    // store result
+    adcMean = 0x1p-3f * (float) acc;
 
     loadSom();
     if(isfinite(somNode[0][0])) {
