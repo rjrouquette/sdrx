@@ -12,7 +12,8 @@
 #include "../run.h"
 #include "tcmp.h"
 
-#define ADC_RATE (0x1p-9f)
+#define ADC_RATE_MEAN (0x1p-9f)
+#define ADC_RATE_VAR  (0x1p-10f)
 
 #define INTV_TEMP (1u << (32 - 10)) // 1024 Hz
 #define INTV_TCMP (1u << (32 - 4))  // 4 Hz
@@ -75,8 +76,8 @@ static void runAdc(void *ref) {
     float diff = adcValue - adcMean;
     float var = diff * diff;
     if(var <= 4 * adcVar)
-        adcMean += ADC_RATE * diff;
-    adcVar += ADC_RATE * (var - adcVar);
+        adcMean += ADC_RATE_MEAN * diff;
+    adcVar += ADC_RATE_VAR * (var - adcVar);
 }
 
 static void runComp(void *ref) {
