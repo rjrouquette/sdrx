@@ -11,6 +11,7 @@
 #include "../format.h"
 #include "../run.h"
 #include "tcmp.h"
+#include "../led.h"
 
 #define TEMP_RATE (0x1p-9f)
 
@@ -71,6 +72,7 @@ static void runAdc(void *ref) {
     ADC0.PSSI.SS0 = 1;
 
     // store result
+    if(adcCount >= 64) faultBlink(5, 1);
     adcSamples[adcCount++] = 0x1p-3f * (float) acc;
 }
 
