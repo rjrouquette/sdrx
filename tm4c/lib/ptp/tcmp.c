@@ -74,7 +74,7 @@ static void runAdc(void *ref) {
     float adcValue = 0x1p-3f * (float) acc;
     float diff = adcValue - adcMean;
     float var = diff * diff;
-    if(var * 4 < adcVar)
+    if(var <= 4 * adcVar)
         adcMean += ADC_RATE * diff;
     adcVar += ADC_RATE * (var - adcVar);
 }
