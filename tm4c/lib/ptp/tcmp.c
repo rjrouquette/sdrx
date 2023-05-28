@@ -27,7 +27,8 @@
 
 #define REG_MIN_RMSE (250e-9f)
 
-static volatile float adcValue;
+static volatile int adcCount;
+static float adcSamples[64];
 static volatile float tempValue;
 
 static volatile uint32_t tcmpSaved;
@@ -55,9 +56,9 @@ static void fitLinear(const float *data, int cnt, float *coef, float *mean);
  */
 static float tcmpEstimate(float temp);
 
-static void runTemp(void *ref) {
+static void runAdc(void *ref) {
     uint32_t acc;
-    // FIFO will always contain eight samples
+    // ADC FIFO will always contain eight samples
     acc  = ADC0.SS0.FIFO.DATA;
     acc += ADC0.SS0.FIFO.DATA;
     acc += ADC0.SS0.FIFO.DATA;
@@ -66,13 +67,20 @@ static void runTemp(void *ref) {
     acc += ADC0.SS0.FIFO.DATA;
     acc += ADC0.SS0.FIFO.DATA;
     acc += ADC0.SS0.FIFO.DATA;
-
-    // accumulate result
-    adcValue += TEMP_RATE * ((0x1p-3f * (float) (acc)) - adcValue);
+    // trigger next sample
     ADC0.PSSI.SS0 = 1;
+
+    // store result
+    adcSamples[adcCount++] = 0x1p-3f * (float) acc;
 }
 
 static void runComp(void *ref) {
+    float adcValue = 0;
+    for(int i = 0; i < adcCount; i++)
+        adcValue += adcSamples[i];
+    adcValue /= (float) adcCount;
+    adcCount = 0;
+
     // update temperature compensation
     tempValue = 147.5f - (0.0604248047f * adcValue);
     tcmpValue = tcmpEstimate(tempValue);
@@ -113,10 +121,7 @@ void TCMP_init() {
     while(!ADC0.RIS.INR0);  // wait for data
     ADC0.ISC.IN0 = 1;       // clear flag
     // drain FIFO
-    uint32_t adc;
-    while(!ADC0.SS0.FSTAT.EMPTY)
-        adc = ADC0.SS0.FIFO.DATA;
-    adcValue = (float) adc;
+    runAdc(NULL);
 
     loadSom();
     if(isfinite(somNode[0][0])) {
@@ -125,7 +130,7 @@ void TCMP_init() {
     }
 
     // schedule thread
-    runSleep(INTV_TEMP, runTemp, NULL);
+    runPeriodic(INTV_TEMP, runAdc, NULL);
     runPeriodic(INTV_TCMP, runComp, NULL);
 }
 
