@@ -17,8 +17,7 @@
 enum RunType {
     RunOnce,
     RunSleep,
-    RunPeriodic,
-    RunOnceExt
+    RunPeriodic
 };
 
 typedef struct Task {
@@ -36,10 +35,6 @@ typedef struct Task {
     uint32_t runTicks;
     uint32_t prevHits;
     uint32_t prevTicks;
-
-    // extension fields
-    SchedulerCallback extCall;
-    uint32_t extCount;
 } Task;
 
 #define SLOT_CNT (32)
@@ -99,16 +94,6 @@ static void reschedule(Task *node) {
     }
     else if(node->runType == RunSleep) {
         nextRun = CLK_MONO_RAW + node->runIntv;
-    }
-    else if(node->runType == RunOnceExt) {
-        if(--node->extCount == 0) {
-            nextRun = node->runNext + node->runIntv;
-            node->runCall = node->extCall;
-            node->runType = RunOnce;
-        }
-        else {
-            nextRun = node->runNext + CLK_FREQ;
-        }
     }
     else {
         nextRun = node->runNext;
@@ -174,9 +159,10 @@ void runScheduler() {
 static void schedule(Task *node) {
     __disable_irq();
     // locate optimal insertion point
+    const uint32_t runNext = node->runNext;
     Task *ins = taskQueue.qNext;
     while(ins != queueRoot) {
-        if(((int32_t) (node->runNext - ins->runNext)) < 0)
+        if(((int32_t) (runNext - ins->runNext)) < 0)
             break;
         ins = ins->qNext;
     }
@@ -227,36 +213,7 @@ void * runPeriodic(uint64_t interval, SchedulerCallback callback, void *ref) {
     return node;
 }
 
-static void * runOnceExtended(uint64_t delay, SchedulerCallback callback, void *ref) {
-    // allocate queue node
-    Task *node = allocTask();
-    node->runType = RunOnceExt;
-    node->runCall = doNothing;
-    node->runRef = ref;
-    node->extCall = callback;
-
-    // convert fixed-point interval to raw monotonic domain
-    union fixed_32_32 scratch;
-    scratch.full = delay;
-    // set countdown
-    node->extCount = scratch.ipart - 1;
-    // set final interval
-    scratch.ipart = 1;
-    scratch.full *= CLK_FREQ;
-    node->runIntv = scratch.ipart;
-
-    // start countdown immediately
-    node->runNext = CLK_MONO_RAW + CLK_FREQ;
-    // add to schedule
-    schedule(node);
-    return node;
-}
-
 void * runOnce(uint64_t delay, SchedulerCallback callback, void *ref) {
-    // check if extended interval support is required
-    if((delay >> 32) > 8)
-        return runOnceExtended(delay, callback, ref);
-
     Task *node = allocTask();
     node->runType = RunOnce;
     node->runCall = callback;
@@ -280,11 +237,7 @@ void runWake(void *taskHandle) {
     Task *node = taskHandle;
     // set next run time
     const uint32_t nextRun = CLK_MONO_RAW;
-    // schedule task to run immediately
     node->runNext = nextRun;
-    node->extCount = 0;
-    if(node->runType == RunOnceExt)
-        node->runCall = node->extCall;
 
     // locate optimal insertion point
     Task *ins = taskQueue.qNext;
@@ -315,11 +268,6 @@ void runCancel(SchedulerCallback callback, void *ref) {
             if((ref == NULL) || (node->runRef == ref))
                 runRemove(node);
         }
-        else if(node->runCall == doNothing) {
-            // additional check for extended tasks
-            if((node->extCall == callback) && ((ref == NULL) || (node->runRef == ref)))
-                runRemove(node);
-        }
     }
 }
 
@@ -328,6 +276,7 @@ void runRemove(void *taskHandle) {
     Task *node = (Task *) taskHandle;
     if(node == taskQueue.qNext) {
         // if so, defer cleanup to main loop
+        node->runCall = doNothing;
         node->runType = RunOnce;
     } else {
         // if not, explicitly cancel task and free memory
@@ -338,7 +287,7 @@ void runRemove(void *taskHandle) {
 
 
 static volatile uint32_t prevQuery;
-static const char typeCode[4] = "OSPE";
+static const char typeCode[3] = "OSP";
 
 unsigned runStatus(char *buffer) {
     char *end = buffer;
