@@ -2,8 +2,8 @@
 // Created by robert on 5/15/23.
 //
 
-#include <stddef.h>
 #include <memory.h>
+#include <stddef.h>
 #include "../hw/interrupts.h"
 #include "clk/mono.h"
 #include "clk/util.h"
@@ -67,26 +67,22 @@ static Task * allocTask() {
     Task *node = taskFree;
     taskFree = node->qNext;
     __enable_irq();
+    memset(node, 0, sizeof(Task));
     return node;
 }
 
 FAST_FUNC
 static void freeTask(Task *node) {
-    __disable_irq();
     // remove from queue
     node->qPrev->qNext = node->qNext;
     node->qNext->qPrev = node->qPrev;
-    // clear node
-    memset((void *) node, 0, sizeof(Task));
     // push onto free stack
     node->qNext = taskFree;
     taskFree = node;
-    __enable_irq();
 }
 
 FAST_FUNC
 static void reschedule(Task *node) {
-    __disable_irq();
     // set next run time
     uint32_t nextRun;
     if(node->runType == RunPeriodic) {
@@ -116,7 +112,6 @@ static void reschedule(Task *node) {
     node->qPrev = ins->qPrev;
     ins->qPrev = node;
     node->qPrev->qNext = node;
-    __enable_irq();
 }
 
 FAST_FUNC
@@ -145,6 +140,7 @@ void runScheduler() {
         (*(task->runCall))(task->runRef);
 
         // determine next state
+        __disable_irq();
         if(task->runType == RunOnce) {
             // task is complete
             freeTask(task);
@@ -153,6 +149,7 @@ void runScheduler() {
             // schedule next run time
             reschedule(task);
         }
+        __enable_irq();
     }
 }
 
@@ -259,31 +256,26 @@ void runWake(void *taskHandle) {
 }
 
 void runCancel(SchedulerCallback callback, void *ref) {
+    __disable_irq();
     Task *next = taskQueue.qNext;
     while(next != queueRoot) {
         Task *node = next;
         next = next->qNext;
 
         if(node->runCall == callback) {
-            if((ref == NULL) || (node->runRef == ref))
-                runRemove(node);
+            if((ref == NULL) || (node->runRef == ref)) {
+                // prevent task from running
+                node->runCall = doNothing;
+                node->runType = RunOnce;
+                // explicitly delete task if it is not currently running
+                if(node != taskQueue.qNext) {
+                    freeTask(node);
+                }
+            }
         }
     }
+    __enable_irq();
 }
-
-void runRemove(void *taskHandle) {
-    // check if the currently running task is being removed
-    Task *node = (Task *) taskHandle;
-    if(node == taskQueue.qNext) {
-        // if so, defer cleanup to main loop
-        node->runCall = doNothing;
-        node->runType = RunOnce;
-    } else {
-        // if not, explicitly cancel task and free memory
-        freeTask(node);
-    }
-}
-
 
 
 static volatile uint32_t prevQuery;
