@@ -79,17 +79,18 @@ static void freeTask(Task *node) {
 
 FAST_FUNC
 static void reschedule(Task *node) {
+    // remove from queue
+    node->qPrev->qNext = node->qNext;
+    node->qNext->qPrev = node->qPrev;
+
     // set next run time
     uint32_t nextRun;
-    if(node->runType == RunPeriodic) {
+    if(node->runType == RunPeriodic)
         nextRun = node->runNext + node->runIntv;
-    }
-    else if(node->runType == RunSleep) {
+    else if(node->runType == RunSleep)
         nextRun = CLK_MONO_RAW + node->runIntv;
-    }
-    else {
+    else
         nextRun = node->runNext;
-    }
     node->runNext = nextRun;
 
     // locate optimal insertion point
@@ -100,9 +101,6 @@ static void reschedule(Task *node) {
         ins = ins->qNext;
     }
 
-    // remove from queue
-    node->qPrev->qNext = node->qNext;
-    node->qNext->qPrev = node->qPrev;
     // insert task into the scheduling queue
     node->qNext = ins;
     node->qPrev = ins->qPrev;
@@ -215,6 +213,10 @@ void * runOnce(uint64_t delay, SchedulerCallback callback, void *ref) {
 void runWake(void *taskHandle) {
     __disable_irq();
     Task *node = taskHandle;
+    // remove from queue
+    node->qPrev->qNext = node->qNext;
+    node->qNext->qPrev = node->qPrev;
+
     // set next run time
     const uint32_t nextRun = CLK_MONO_RAW;
     node->runNext = nextRun;
@@ -227,9 +229,6 @@ void runWake(void *taskHandle) {
         ins = ins->qNext;
     }
 
-    // remove from queue
-    node->qPrev->qNext = node->qNext;
-    node->qNext->qPrev = node->qPrev;
     // insert task into the scheduling queue
     node->qNext = ins;
     node->qPrev = ins->qPrev;
