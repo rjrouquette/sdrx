@@ -31,10 +31,6 @@ typedef struct Task {
     void *runRef;
     uint32_t runNext;
     uint32_t runIntv;
-    uint32_t runHits;
-    uint32_t runTicks;
-    uint32_t prevHits;
-    uint32_t prevTicks;
 } Task;
 
 #define SLOT_CNT (32)
@@ -117,24 +113,12 @@ static void reschedule(Task *node) {
 FAST_FUNC
 _Noreturn
 void runScheduler() {
-    Task *task = queueRoot;
-    uint32_t now = CLK_MONO_RAW;
-
     // infinite loop
     for (;;) {
-        // record time spent on prior task
-        const uint32_t prior = now;
-        now = CLK_MONO_RAW;
-        task->runTicks += now - prior;
-        ++(task->runHits);
-
         // check for scheduled tasks
-        task = taskQueue.qNext;
-        if(((int32_t) (now - task->runNext)) < 0) {
-            // credit idle polling time spent the scheduler
-            task = queueRoot;
+        Task *task = taskQueue.qNext;
+        if(((int32_t) (CLK_MONO_RAW - task->runNext)) < 0)
             continue;
-        }
 
         // run the task
         (*(task->runCall))(task->runRef);
@@ -144,7 +128,6 @@ void runScheduler() {
         if(task->runType == RunOnce) {
             // task is complete
             freeTask(task);
-            task = queueRoot;
         } else {
             // schedule next run time
             reschedule(task);
@@ -277,86 +260,25 @@ void runCancel(SchedulerCallback callback, void *ref) {
     __enable_irq();
 }
 
-
-static volatile uint32_t prevQuery;
 static const char typeCode[3] = "OSP";
 
 unsigned runStatus(char *buffer) {
     char *end = buffer;
-    uint32_t elapsed = CLK_MONO_RAW - prevQuery;
-    prevQuery += elapsed;
-    float scale = 125e6f / (float) elapsed;
-
-    // collect active tasks
-    int topList[SLOT_CNT];
-    int cnt = 0;
-    Task *next = taskQueue.qNext;
-    while(next != queueRoot) {
-        topList[cnt++] = next - taskPool;
-        next = next->qNext;
-    }
-
-    for(int i = 0; i < cnt; i++) {
-        Task *node = taskPool + topList[i];
-        node->prevHits = node->runHits - node->prevHits;
-        node->prevTicks = node->runTicks - node->prevTicks;
-    }
-
-    // sort active tasks
-    for(int i = 0; i < cnt; i++) {
-        for(int j = i + 1; j < cnt; j++) {
-            int a = topList[i];
-            int b = topList[j];
-            if(taskPool[a].prevTicks < taskPool[b].prevTicks) {
-                topList[i] = b;
-                topList[j] = a;
-            }
-        }
-    }
 
     // header row
-    end = append(end, "  Call  Context  Hits     Micros  \n");
+    end = append(end, "  Call  Context\n");
 
-    uint32_t totalTicks = 0, totalHits = 0;
-    for(int i = 0; i < cnt; i++) {
-        Task *node = taskPool + topList[i];
+    Task *next = taskQueue.qNext;
+    while(next != queueRoot) {
+        Task *node = next;
+        next = next->qNext;
 
         *(end++) = typeCode[node->runType];
         *(end++) = ' ';
         end += toHex((uint32_t) node->runCall, 5, '0', end);
         *(end++) = ' ';
         end += toHex((uint32_t) node->runRef, 8, '0', end);
-        *(end++) = ' ';
-        end += fmtFloat(scale * (float) node->prevHits, 8, 0, end);
-        *(end++) = ' ';
-        end += fmtFloat(scale * 0.008f * (float) node->prevTicks, 8, 0, end);
         *(end++) = '\n';
-
-        totalHits += node->prevHits;
-        totalTicks += node->prevTicks;
     }
-
-    *(end++) = '\n';
-    end += padCopy(17, ' ', end, "Used ", 5);
-    end += fmtFloat(scale * (float) totalHits, 8, 0, end);
-    *(end++) = ' ';
-    end += fmtFloat(scale * 0.008f * (float) totalTicks, 8, 0, end);
-    *(end++) = '\n';
-
-    end += padCopy(17, ' ', end, "Idle ", 5);
-    end += fmtFloat(scale * (float) (taskQueue.runHits - taskQueue.prevHits), 8, 0, end);
-    *(end++) = ' ';
-    end += fmtFloat(scale * 0.008f * (float) (taskQueue.runTicks - taskQueue.prevTicks), 8, 0, end);
-    *(end++) = '\n';
-
-    // set prior state
-    for(int i = 0; i < cnt; i++) {
-        Task *node = taskPool + topList[i];
-        node->prevHits = node->runHits;
-        node->prevTicks = node->runTicks;
-    }
-    taskQueue.prevHits = taskQueue.runHits;
-    taskQueue.prevTicks = taskQueue.runTicks;
-
     return end - buffer;
 }
