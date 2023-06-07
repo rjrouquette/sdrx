@@ -264,19 +264,29 @@ static const char typeCode[3] = "OSP";
 unsigned runStatus(char *buffer) {
     char *end = buffer;
 
+    // gather tasks
+    int taskCount = 0;
+    Task *tasks[SLOT_CNT];
+
+    __disable_irq();
+    Task *next = taskQueue.qNext;
+    while(next != queueRoot) {
+        tasks[taskCount++] = next;
+        next = next->qNext;
+    }
+    __enable_irq();
+
     // header row
     end = append(end, "  Call  Context\n");
 
-    Task *next = taskQueue.qNext;
-    while(next != queueRoot) {
-        Task *node = next;
-        next = next->qNext;
+    for(int i = 0; i < taskCount; i++) {
+        Task *task = tasks[i];
 
-        *(end++) = typeCode[node->runType];
+        *(end++) = typeCode[task->runType];
         *(end++) = ' ';
-        end += toHex((uint32_t) node->runCall, 5, '0', end);
+        end += toHex((uint32_t) task->runCall, 5, '0', end);
         *(end++) = ' ';
-        end += toHex((uint32_t) node->runRef, 8, '0', end);
+        end += toHex((uint32_t) task->runRef, 8, '0', end);
         *(end++) = '\n';
     }
     return end - buffer;
