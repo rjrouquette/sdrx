@@ -23,7 +23,7 @@
 #define PTP_HIST_OFFSET (32)
 #define PTP_MAX_SRCS (8)
 #define PTP_MIN_ACCURACY (250e-9f)
-#define PTP_DELAY_DIV (4)
+#define PTP_DELAY_DIV (2)
 
 
 typedef struct PtpSample {
