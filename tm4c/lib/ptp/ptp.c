@@ -115,7 +115,6 @@ void PTP_process(uint8_t *frame, int flen) {
     // look for matching source
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(mac != sources[i].mac) continue;
-        runAdjust(sources[i].delayTask, 1ull << (32 + sources[i].syncRate));
         sourceRx(sources + i, frame, flen);
         return;
     }
@@ -139,7 +138,7 @@ void PTP_process(uint8_t *frame, int flen) {
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(sources[i].mac == 0) {
             sources[i].mac = mac;
-            sources[i].delayTask = runSleep(1ull << 36, runRequestDelay, sources + i);
+            sources[i].delayTask = runSleep(1ull << 32, runRequestDelay, sources + i);
             return;
         }
     }
@@ -423,13 +422,15 @@ static void sourceRx(PtpSource *src, uint8_t *frame, int flen) {
 
     if(headerPTP->messageType == PTP2_MT_SYNC) {
         // process sync message (defer filter update until followup message)
-        src->syncRate = (int8_t) headerPTP->logMessageInterval;
+        int8_t syncRate = (int8_t) headerPTP->logMessageInterval;
+        if(syncRate != src->syncRate) {
+            src->syncRate = syncRate;
+            runAdjust(src->delayTask, 1ull << (32 + syncRate));
+        }
         src->seqSync = headerPTP->sequenceId;
         uint64_t stamps[3];
         NET_getRxTime(frame, stamps);
         src->rxLocal = stamps[2];
-        // perform delay request
-        runWake(src->delayTask);
     }
     else if(headerPTP->messageType == PTP2_MT_FOLLOW_UP) {
         // process sync followup message
