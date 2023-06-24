@@ -23,6 +23,7 @@
 #define PTP_HIST_OFFSET (32)
 #define PTP_MAX_SRCS (8)
 #define PTP_MIN_ACCURACY (250e-9f)
+#define PTP_DELAY_DIV (4)
 
 
 typedef struct PtpSample {
@@ -36,10 +37,12 @@ typedef struct PtpSource {
     uint64_t rxRemote;
     uint64_t txLocal;
     uint64_t txRemote;
+    void *delayTask;
     uint32_t delay;
     uint16_t seqDelay;
     uint16_t seqSync;
     int8_t syncRate;
+    uint8_t delayDiv;
 } PtpSource;
 
 
@@ -71,7 +74,7 @@ static float offsetStdDev;
 // source internal state functions
 static void sourceDelay(PtpSource *src);
 static void sourceDelayTx(void *ref, uint8_t *frame, int flen);
-static void sourceRequestDelay(PtpSource *src);
+static void runRequestDelay(void *ref);
 static void sourceRx(PtpSource *src, uint8_t *frame, int flen);
 static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts);
 
@@ -129,8 +132,10 @@ void PTP_process(uint8_t *frame, int flen) {
     // remove source if its quality is too poor
     if(clkQual < 0x20 || clkQual > 0x31 || lutClkAccuracy[clkQual - 0x20] > PTP_MIN_ACCURACY) {
         for(int i = 0; i < PTP_MAX_SRCS; i++) {
-            if(sources[i].mac == mac)
+            if(sources[i].mac == mac) {
+                runCancel(NULL, sources + i);
                 memset(sources + i, 0, sizeof(PtpSource));
+            }
         }
         return;
     }
@@ -138,6 +143,7 @@ void PTP_process(uint8_t *frame, int flen) {
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(sources[i].mac == 0) {
             sources[i].mac = mac;
+            sources[i].delayTask = runSleep(1ull << 36, runRequestDelay, sources + i);
             return;
         }
     }
@@ -147,7 +153,7 @@ void PTP_process(uint8_t *frame, int flen) {
 static void runDelay(void *ref) {
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(sources[i].mac)
-            sourceRequestDelay(sources + i);
+            runRequestDelay(sources + i);
     }
 }
 
@@ -383,7 +389,9 @@ static void sourceDelayTx(void *ref, uint8_t *frame, int flen) {
     sourceDelay(src);
 }
 
-static void sourceRequestDelay(PtpSource *src) {
+static void runRequestDelay(void *ref) {
+    PtpSource *src = (PtpSource *) ref;
+
     int txDesc = NET_getTxDesc();
     if(txDesc < 0) return;
     // allocate and clear frame buffer
@@ -432,6 +440,9 @@ static void sourceRx(PtpSource *src, uint8_t *frame, int flen) {
         uint64_t stamps[3];
         NET_getRxTime(frame, stamps);
         src->rxLocal = stamps[2];
+        // perform delay request
+        if(++src->delayDiv >= PTP_DELAY_DIV)
+            runWake(src->delayTask);
     }
     else if(headerPTP->messageType == PTP2_MT_FOLLOW_UP) {
         // process sync followup message
