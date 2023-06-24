@@ -23,7 +23,6 @@
 #define PTP_HIST_OFFSET (32)
 #define PTP_MAX_SRCS (8)
 #define PTP_MIN_ACCURACY (250e-9f)
-#define PTP_DELAY_DIV (2)
 
 
 typedef struct PtpSample {
@@ -42,7 +41,6 @@ typedef struct PtpSource {
     uint16_t seqDelay;
     uint16_t seqSync;
     int8_t syncRate;
-    uint8_t delayDiv;
 } PtpSource;
 
 
@@ -441,8 +439,7 @@ static void sourceRx(PtpSource *src, uint8_t *frame, int flen) {
         NET_getRxTime(frame, stamps);
         src->rxLocal = stamps[2];
         // perform delay request
-        if(++src->delayDiv >= PTP_DELAY_DIV)
-            runWake(src->delayTask);
+        runWake(src->delayTask);
     }
     else if(headerPTP->messageType == PTP2_MT_FOLLOW_UP) {
         // process sync followup message
