@@ -76,7 +76,6 @@ static void runRequestDelay(void *ref);
 static void sourceRx(PtpSource *src, uint8_t *frame, int flen);
 static void sourceSync(PtpSource *src, PTP2_TIMESTAMP *ts);
 
-static void runDelay(void *ref);
 static void runMeasure(void *ref);
 
 void PTP_init() {
@@ -84,8 +83,6 @@ void PTP_init() {
 
     // set clock ID to MAC address
     getMAC(ptpClockId + 2);
-    // update source delay at 4 Hz
-    runSleep(1ull << 30, runDelay, NULL);
     // update offset measurement every second
     runSleep(1ull << 32, runMeasure, NULL);
 }
@@ -118,6 +115,7 @@ void PTP_process(uint8_t *frame, int flen) {
     // look for matching source
     for(int i = 0; i < PTP_MAX_SRCS; i++) {
         if(mac != sources[i].mac) continue;
+        runAdjust(sources[i].delayTask, 1ull << (32 + sources[i].syncRate));
         sourceRx(sources + i, frame, flen);
         return;
     }
@@ -144,14 +142,6 @@ void PTP_process(uint8_t *frame, int flen) {
             sources[i].delayTask = runSleep(1ull << 36, runRequestDelay, sources + i);
             return;
         }
-    }
-}
-
-
-static void runDelay(void *ref) {
-    for(int i = 0; i < PTP_MAX_SRCS; i++) {
-        if(sources[i].mac)
-            runRequestDelay(sources + i);
     }
 }
 
