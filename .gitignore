@@ -13,7 +13,7 @@ cmake-build-*/
 gpsdo.csv
 
 # kicad backup file
-kicad/*-backups/
+kicad/*/*-backups/
 
 # LTSpice
 *.log
